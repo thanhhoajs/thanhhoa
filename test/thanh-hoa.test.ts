@@ -3,6 +3,7 @@ import {
   ThanhHoa,
   HttpException,
   type IRequestContext,
+  type INextFunction,
 } from '@thanhhoajs/thanhhoa';
 
 // Mock for Bun.serve
@@ -84,7 +85,7 @@ test('DELETE request', async () => {
 
 test('Middleware', async () => {
   const app = setup();
-  const middleware = async (ctx: any, next: () => Promise<Response>) => {
+  const middleware = async (ctx: any, next: INextFunction) => {
     ctx.custom = 'Middleware';
     return next();
   };

@@ -53,11 +53,11 @@ Visit `http://localhost:3000` in your browser to see "Hello, ThanhHoa!".
 ThanhHoa supports various HTTP methods and route parameters:
 
 ```typescript
-app.get('/users/:id', (ctx: IRequestContext) => {
+app.get('/user/:id', (ctx: IRequestContext) => {
   return new Response(`User ID: ${ctx.params.id}`);
 });
 
-app.post('/users', async (ctx: IRequestContext) => {
+app.post('/user', async (ctx: IRequestContext) => {
   const body = await ctx.request.json();
   // Process the body...
   return new Response('User created', { status: 201 });
@@ -69,7 +69,7 @@ app.post('/users', async (ctx: IRequestContext) => {
 Add middleware to your application or specific routes:
 
 ```typescript
-const logger = async (ctx, next) => {
+const logger = async (ctx: IRequestContext, next: INextFunction) => {
   console.log(`${ctx.request.method} ${ctx.request.url}`);
   return next();
 };

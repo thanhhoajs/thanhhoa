@@ -11,6 +11,13 @@ import {
  * @description Main class for the ThanhHoa server framework.
  */
 export class ThanhHoa extends Router {
+  /**
+   * Parses the query string into an object of key-value pairs.
+   *
+   * @param {URLSearchParams} searchParams - The query string to parse.
+   * @returns {Record<string, string>} An object of key-value pairs.
+   * @private
+   */
   private parseQuery(searchParams: URLSearchParams): Record<string, string> {
     return Object.fromEntries(searchParams);
   }

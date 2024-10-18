@@ -1,4 +1,4 @@
-import type { IRequestContext } from '@thanhhoajs/thanhhoa';
+import type { INextFunction, IRequestContext } from '@thanhhoajs/thanhhoa';
 
 /**
  * Represents an HTTP method.
@@ -28,5 +28,5 @@ export type RouteHandler = (
  */
 export type Middleware = (
   context: IRequestContext,
-  next: () => Promise<Response>,
+  next: INextFunction,
 ) => Promise<Response>;

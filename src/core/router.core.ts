@@ -17,6 +17,16 @@ export class Router {
 
   constructor(private prefix: string = '') {}
 
+  /**
+   * Adds a route.
+   *
+   * @param {HttpMethod} method - The HTTP method.
+   * @param {string} path - The path.
+   * @param {Middleware[]} middlewares - The array of middlewares.
+   * @param {RouteHandler} handler - The route handler.
+   *
+   * @protected
+   */
   private addRoute(
     method: HttpMethod,
     path: string,
@@ -94,6 +104,13 @@ export class Router {
    */
   delete = this.routeMethod('DELETE');
 
+  /**
+   * Generates a route method with the given HTTP method.
+   *
+   * @param {HttpMethod} method - The HTTP method.
+   * @returns {(path: string, ...handlers: (Middleware | RouteHandler)[]) => this} The route method.
+   * @private
+   */
   private routeMethod(method: HttpMethod) {
     return (path: string, ...handlers: (Middleware | RouteHandler)[]): this => {
       const middlewares = handlers.slice(0, -1) as Middleware[];
