@@ -1,7 +1,7 @@
 /**
  * CORS middleware options.
  */
-export interface CORSOptions {
+export interface ICORSOptions {
   origin?: string | string[];
   methods?: string[];
   allowedHeaders?: string[];

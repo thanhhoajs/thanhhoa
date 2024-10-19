@@ -4,10 +4,10 @@ import {
   type Middleware,
   ThanhHoaResponse,
   HttpException,
-  type CORSOptions,
+  type ICORSOptions,
 } from '@thanhhoajs/thanhhoa';
 
-const defaultCORSOptions: CORSOptions = {
+const defaultCORSOptions: ICORSOptions = {
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -19,7 +19,7 @@ const defaultCORSOptions: CORSOptions = {
 /**
  * CORS middleware to handle Cross-Origin Resource Sharing settings for HTTP requests.
  *
- * @param {CORSOptions} [options=defaultCORSOptions] - Configuration options for CORS.
+ * @param {ICORSOptions} [options=defaultCORSOptions] - Configuration options for CORS.
  * @returns {Middleware} A middleware function that applies CORS headers to the response.
  *
  * @description
@@ -31,7 +31,7 @@ const defaultCORSOptions: CORSOptions = {
  * app.use(corsMiddleware());
  */
 export const corsMiddleware = (
-  options: CORSOptions = defaultCORSOptions,
+  options: ICORSOptions = defaultCORSOptions,
 ): Middleware => {
   const corsOptions = { ...defaultCORSOptions, ...options };
 

@@ -32,7 +32,7 @@ export class ThanhHoa extends Router {
    * @throws {HttpException} If the request could not be handled successfully.
    * @throws {Error} If an unexpected error occurred while handling the request.
    */
-  async handleRequest(req: Request): Promise<Response> {
+  private async handleRequest(req: Request): Promise<Response> {
     const url = new URL(req.url);
     const context: IRequestContext = {
       request: req,

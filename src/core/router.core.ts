@@ -143,7 +143,7 @@ export class Router {
    * @param {IRequestContext} context - The request context.
    * @returns {Promise<Response | null>} The promise of the response.
    */
-  async handle(context: IRequestContext): Promise<Response | null> {
+  protected async handle(context: IRequestContext): Promise<Response | null> {
     const { request } = context;
     const method = request.method as HttpMethod;
     const url = new URL(request.url);
