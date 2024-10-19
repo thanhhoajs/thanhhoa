@@ -13,7 +13,7 @@ ThanhHoa is a lightweight, high-performance web framework for Bun, designed to m
 
 - 🚀 Built for speed: Leverages Bun's performance for lightning-fast request handling
 - 🧩 Modular: Easy-to-use middleware system
-- 🛣️ Intuitive routing: With support for parameters
+- 🛣️ Intuitive routing: Support for parameters
 - 🎛️ Flexible: Supports various HTTP methods (GET, POST, PUT, PATCH, DELETE)
 - 🔒 Built-in error handling: Comes with HttpException for standardized error responses
 - 🎭 TypeScript support: Written in TypeScript for better developer experience
@@ -69,12 +69,15 @@ app.post('/user', async (ctx: IRequestContext) => {
 Add middleware to your application or specific routes:
 
 ```typescript
+// Custom middleware
 const logger = async (ctx: IRequestContext, next: INextFunction) => {
   console.log(`${ctx.request.method} ${ctx.request.url}`);
   return next();
 };
 
 app.use(logger);
+app.use(corsMiddleware());
+app.use(helmetMiddleware());
 
 app.get('/protected', authMiddleware, (ctx: IRequestContext) => {
   return new Response('Protected route');

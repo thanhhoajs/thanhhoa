@@ -23,7 +23,7 @@ export type RouteHandler = (
  * @typedef {function(context: IRequestContext, next: function(): Promise<Response>): Promise<Response>} Middleware
  * @description Intercepts incoming requests and returns a promise of a response.
  * @param {IRequestContext} context - The request context.
- * @param {function(): Promise<Response>} next - The next middleware function in the chain.
+ * @param {INextFunction} next - The next middleware function in the chain.
  * @returns {Promise<Response>} A promise of a response.
  */
 export type Middleware = (

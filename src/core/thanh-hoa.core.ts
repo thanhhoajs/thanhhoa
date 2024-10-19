@@ -1,6 +1,7 @@
 import type { ServeOptions, Server } from 'bun';
 import {
   Router,
+  ThanhHoaResponse,
   type HttpException,
   type IRequestContext,
 } from '@thanhhoajs/thanhhoa';
@@ -46,17 +47,8 @@ export class ThanhHoa extends Router {
       );
     } catch (error: HttpException | any) {
       this.logger.error(`Error handling request: ${error}`);
-      const payload = {
-        meta: {
-          status: error?.status ?? 500,
-          message: error?.message ?? 'Internal Server Error',
-        },
-        data: error?.data,
-      };
-      return new Response(JSON.stringify(payload), {
-        status: payload.meta.status,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      const response = new ThanhHoaResponse(error);
+      return response.toResponse();
     }
   }
 
