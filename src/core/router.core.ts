@@ -41,7 +41,7 @@ export class Router {
           paramNames.push(name);
           return '([^\\/]+)';
         }) +
-        '$',
+        '/?$', // Allow optional trailing slash
     );
     this.routes.push({ method, pattern, paramNames, middlewares, handler });
     this.logger.info(`Defined route [${method}] ${fullPath}`);
@@ -111,7 +111,9 @@ export class Router {
    * @returns {(path: string, ...handlers: (Middleware | RouteHandler)[]) => this} The route method.
    * @private
    */
-  private routeMethod(method: HttpMethod) {
+  private routeMethod(
+    method: HttpMethod,
+  ): (path: string, ...handlers: (Middleware | RouteHandler)[]) => this {
     return (path: string, ...handlers: (Middleware | RouteHandler)[]): this => {
       const middlewares = handlers.slice(0, -1) as Middleware[];
       const handler = handlers[handlers.length - 1] as RouteHandler;
