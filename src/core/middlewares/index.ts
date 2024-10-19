@@ -1,2 +1,2 @@
-export * from './cors';
-export * from './helmet';
+export * from './cors.middleware';
+export * from './helmet.middleware';

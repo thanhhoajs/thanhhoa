@@ -1,7 +1,7 @@
 /**
  * Helmet middleware options.
  */
-export interface HelmetOptions {
+export interface IHelmetOptions {
   xssFilter?: boolean;
   noSniff?: boolean;
   frameguard?: 'DENY' | 'SAMEORIGIN';

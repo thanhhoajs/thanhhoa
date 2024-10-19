@@ -4,13 +4,13 @@ import {
   type Middleware,
   ThanhHoaResponse,
   HttpException,
-  type HelmetOptions,
+  type IHelmetOptions,
 } from '@thanhhoajs/thanhhoa';
 
 /**
  * Default Helmet options.
  */
-const defaultHelmetOptions: HelmetOptions = {
+const defaultHelmetOptions: IHelmetOptions = {
   xssFilter: true,
   noSniff: true,
   frameguard: 'DENY',
@@ -24,7 +24,7 @@ const defaultHelmetOptions: HelmetOptions = {
 /**
  * Helmet middleware to set secure HTTP headers.
  *
- * @param {HelmetOptions} [options=defaultHelmetOptions] - Configuration options for Helmet.
+ * @param {IHelmetOptions} [options=defaultHelmetOptions] - Configuration options for Helmet.
  * @returns {Middleware} A middleware function that applies Helmet headers to the response.
  *
  * @description
@@ -34,7 +34,7 @@ const defaultHelmetOptions: HelmetOptions = {
  * app.use(helmetMiddleware());
  */
 export const helmetMiddleware = (
-  options: HelmetOptions = defaultHelmetOptions,
+  options: IHelmetOptions = defaultHelmetOptions,
 ): Middleware => {
   const helmetOptions = { ...defaultHelmetOptions, ...options };
 
