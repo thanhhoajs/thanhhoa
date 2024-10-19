@@ -55,7 +55,6 @@ export class Router {
    */
   use(middleware: Middleware): this {
     this.globalMiddlewares.push(middleware);
-    this.logger.info('Registered global middleware');
     return this;
   }
 
