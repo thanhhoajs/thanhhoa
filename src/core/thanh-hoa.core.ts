@@ -1,8 +1,8 @@
 import type { ServeOptions, Server } from 'bun';
 import {
+  HttpException,
   Router,
   ThanhHoaResponse,
-  type HttpException,
   type IRequestContext,
 } from '@thanhhoajs/thanhhoa';
 
@@ -45,10 +45,15 @@ export class ThanhHoa extends Router {
         (await this.handle(context)) ??
         new Response('Not Found', { status: 404 })
       );
-    } catch (error: HttpException | any) {
-      this.logger.error(`Error handling request: ${error}`);
-      const response = new ThanhHoaResponse(error);
-      return response.toResponse();
+    } catch (error) {
+      this.logger.error('Error handling request:\n', error);
+
+      if (error instanceof HttpException) {
+        const response = new ThanhHoaResponse(error);
+        return response.toResponse();
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -64,7 +69,7 @@ export class ThanhHoa extends Router {
       fetch: (req) => this.handleRequest(req),
     });
 
-    this.logger.info(`ThanhHoa server listening on ${server.url}`);
+    this.logger.success(`ThanhHoa server listening on ${server.url}`);
     return server;
   }
 }
