@@ -43,8 +43,12 @@ export const helmetMiddleware = (
 
     try {
       response = await next();
-    } catch (error: HttpException | any) {
-      response = new ThanhHoaResponse(error).toResponse();
+    } catch (error) {
+      if (error instanceof HttpException) {
+        response = new ThanhHoaResponse(error).toResponse();
+      } else {
+        throw error;
+      }
     }
 
     // Prepare headers

@@ -148,7 +148,7 @@ export class Router {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    this.logger.info(`Handling request [${method}] ${path}`);
+    this.logger.trace(`Handling request [${method}] ${path}`);
 
     for (const route of this.routes) {
       if (route.method === method) {
