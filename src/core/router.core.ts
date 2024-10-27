@@ -137,6 +137,15 @@ export class Router {
   }
 
   /**
+   * Retrieves the current prefix for the router.
+   *
+   * @returns {string} The current prefix.
+   */
+  getPrefix(): string {
+    return this.prefix;
+  }
+
+  /**
    * Handles the request.
    *
    * @param {IRequestContext} context - The request context.
