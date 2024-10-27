@@ -12,6 +12,9 @@ export const setupSwagger = (
   docsRoute: string,
   swaggerSpec: object,
 ) => {
+  // Get the full path including prefix for the client-side URL
+  const fullPath = `${app.getPrefix()}${docsRoute}`;
+
   // Route for serving Swagger JSON spec
   app.get(`${docsRoute}/swagger.json`, async (context: IRequestContext) => {
     return new Response(JSON.stringify(swaggerSpec), {
@@ -34,7 +37,7 @@ export const setupSwagger = (
         <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
         <script>
             SwaggerUIBundle({
-            url: '${docsRoute}/swagger.json',
+            url: '${fullPath}/swagger.json',  // Use the full path including /api prefix
             dom_id: '#swagger-ui',
             });
         </script>
