@@ -8,21 +8,19 @@ app.get('/test', (ctx: IRequestContext) => {
   return new Response('Hello, World!');
 });
 
-// Function to create multiple requests at the same time
+// Function to create multiple requests concurrently
 async function makeRequests(numRequests: number): Promise<number[]> {
-  const start = performance.now();
-  const requests = Array(numRequests)
-    .fill(0)
-    .map(() => fetch('http://localhost:3000/test'));
-  const responses = await Promise.all(requests);
-  const end = performance.now();
-
-  const latencies = responses.map((_, index) => {
-    const requestEnd = performance.now();
-    return requestEnd - start;
+  const requests = Array.from({ length: numRequests }, async () => {
+    const start = performance.now();
+    try {
+      await fetch('http://localhost:3000/test');
+      return performance.now() - start;
+    } catch {
+      return Infinity; // Return a high value for failed requests
+    }
   });
 
-  return latencies;
+  return Promise.all(requests);
 }
 
 // Main function to run benchmark
@@ -41,24 +39,30 @@ async function runBenchmark() {
     const latencies = await makeRequests(requestsPerIteration);
     const afterHeap = heapStats();
 
+    const validLatencies = latencies.filter((lat) => lat !== Infinity); // Filter out failed requests
     const avgLatency =
-      latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length;
-    const maxLatency = Math.max(...latencies);
-    const minLatency = Math.min(...latencies);
+      validLatencies.reduce((sum, lat) => sum + lat, 0) /
+        validLatencies.length || 0;
+    const maxLatency = Math.max(...validLatencies, 0);
+    const minLatency = Math.min(...validLatencies, Infinity);
 
     console.log(`  Avg Latency: ${avgLatency.toFixed(2)}ms`);
-    console.log(`  Min Latency: ${minLatency.toFixed(2)}ms`);
+    console.log(
+      `  Min Latency: ${minLatency === Infinity ? 'N/A' : minLatency.toFixed(2)}ms`,
+    );
     console.log(`  Max Latency: ${maxLatency.toFixed(2)}ms`);
     console.log(
       `  Memory Usage: ${(afterHeap.heapSize - beforeHeap.heapSize) / 1024 / 1024} MB`,
     );
 
-    // Wait a bit between iterations so the system can stabilize
+    // Wait a bit between iterations to stabilize the system
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
   server.stop();
   console.log('Benchmark completed.');
+
+  process.exit(0);
 }
 
 runBenchmark().catch(console.error);

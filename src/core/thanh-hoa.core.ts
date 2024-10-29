@@ -54,7 +54,7 @@ export class ThanhHoa extends Router {
     }
   }
 
-  async handleRequest(req: Request): Promise<Response> {
+  async handleRequest(req: Request, server: Server): Promise<Response> {
     return this.addToRequestPool(async () => {
       const start = performance.now();
 
@@ -78,6 +78,7 @@ export class ThanhHoa extends Router {
         }
 
         const context: IRequestContext = {
+          socketAddress: server.requestIP(req),
           request: req,
           params: {},
           query: this.parseQuery(urlEntry.url.searchParams),
@@ -150,7 +151,7 @@ export class ThanhHoa extends Router {
   listen(options: Omit<ServeOptions, 'fetch'>): Server {
     const server = Bun.serve({
       ...options,
-      fetch: (req) => this.handleRequest(req),
+      fetch: (req: Request, server: Server) => this.handleRequest(req, server),
     });
 
     this.logger.success(

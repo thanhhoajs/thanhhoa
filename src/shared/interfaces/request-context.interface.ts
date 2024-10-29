@@ -1,9 +1,17 @@
+import type { SocketAddress } from 'bun';
+
 /**
  * Represents the context of an incoming request.
  * @interface IRequestContext
  * @description Provides access to the request, route parameters, query parameters, and other request-related data.
  */
 export interface IRequestContext {
+  /**
+   * The socketAddress of the incoming request.
+   * @type {SocketAddress}
+   */
+  socketAddress: SocketAddress | null;
+
   /**
    * The incoming request object.
    * @type {Request}
