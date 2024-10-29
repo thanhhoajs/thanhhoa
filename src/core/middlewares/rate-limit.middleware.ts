@@ -36,7 +36,9 @@ class RateLimiter {
   getClientKey(context: IRequestContext): string {
     const req = context.request;
     const forwarded = req.headers.get('x-forwarded-for');
-    const ip = forwarded ? forwarded.split(',')[0].trim() : 'unknown';
+    const ip = forwarded
+      ? forwarded.split(',')[0].trim()
+      : context.socketAddress?.address;
     return `${ip}:${req.method}:${new URL(req.url).pathname}`;
   }
 

@@ -5,6 +5,7 @@ import {
   type IRequestContext,
   type INextFunction,
 } from '@thanhhoajs/thanhhoa';
+import type { Server } from 'bun';
 
 // Mock for Bun.serve
 const mockServe = mock(() => ({
@@ -19,6 +20,12 @@ function createMockRequest(method: string, url: string, body?: any): Request {
   return new Request(url, { method, body: JSON.stringify(body) });
 }
 
+function createMockServer(): Server {
+  return {
+    requestIP: () => '127.0.0.1',
+  } as any;
+}
+
 // Function to set up a new instance of ThanhHoa for each test
 function setup() {
   const app = new ThanhHoa();
@@ -31,6 +38,7 @@ test('GET request', async () => {
   app.get('/test', (ctx: IRequestContext) => new Response('GET Test'));
   const response = await app.handleRequest(
     createMockRequest('GET', 'http://localhost:3000/test'),
+    createMockServer(),
   );
   expect(await response.text()).toBe('GET Test');
 });
@@ -43,6 +51,7 @@ test('POST request', async () => {
   });
   const response = await app.handleRequest(
     createMockRequest('POST', 'http://localhost:3000/test', { key: 'value' }),
+    createMockServer(),
   );
   expect(await response.json()).toEqual({ key: 'value' });
 });
@@ -55,6 +64,7 @@ test('PUT request', async () => {
   );
   const response = await app.handleRequest(
     createMockRequest('PUT', 'http://localhost:3000/test/123'),
+    createMockServer(),
   );
   expect(await response.text()).toBe('PUT Test 123');
 });
@@ -67,6 +77,7 @@ test('PATCH request', async () => {
   );
   const response = await app.handleRequest(
     createMockRequest('PATCH', 'http://localhost:3000/test/456'),
+    createMockServer(),
   );
   expect(await response.text()).toBe('PATCH Test 456');
 });
@@ -79,6 +90,7 @@ test('DELETE request', async () => {
   );
   const response = await app.handleRequest(
     createMockRequest('DELETE', 'http://localhost:3000/test/789'),
+    createMockServer(),
   );
   expect(await response.text()).toBe('DELETE Test 789');
 });
@@ -95,6 +107,7 @@ test('Middleware', async () => {
 
   const response = await app.handleRequest(
     createMockRequest('GET', 'http://localhost:3000/test'),
+    createMockServer(),
   );
   expect(await response.text()).toBe('Middleware');
 });
@@ -103,6 +116,7 @@ test('Route not found', async () => {
   const app = setup();
   const response = await app.handleRequest(
     createMockRequest('GET', 'http://localhost:3000/notfound'),
+    createMockServer(),
   );
   expect(response.status).toBe(404);
 });
@@ -115,6 +129,7 @@ test('HttpException handling', async () => {
 
   const response = await app.handleRequest(
     createMockRequest('GET', 'http://localhost:3000/error'),
+    createMockServer(),
   );
   expect(response.status).toBe(400);
   const body = await response.json();
@@ -133,6 +148,7 @@ test('Query parameters', async () => {
       'GET',
       'http://localhost:3000/query?key1=value1&key2=value2',
     ),
+    createMockServer(),
   );
   expect(await response.json()).toEqual({ key1: 'value1', key2: 'value2' });
 });
@@ -145,6 +161,7 @@ test('Route grouping', async () => {
 
   const response = await app.handleRequest(
     createMockRequest('GET', 'http://localhost:3000/api/test'),
+    createMockServer(),
   );
   expect(await response.text()).toBe('API Test');
 });
