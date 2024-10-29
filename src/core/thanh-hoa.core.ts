@@ -21,7 +21,7 @@ export class ThanhHoa extends Router {
   private requestPool = new Set<Promise<any>>();
   private maxConcurrent = 1000;
 
-  constructor() {
+  constructor(protected prefix: string = '') {
     super();
     setInterval(() => this.cleanCache(), 60000);
   }
