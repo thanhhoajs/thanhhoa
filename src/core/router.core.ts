@@ -15,7 +15,7 @@ export class Router {
   private globalMiddlewares: Middleware[] = [];
   protected logger = Logger.get('THANHHOA');
 
-  constructor(private prefix: string = '') {}
+  constructor(protected prefix: string = '') {}
 
   /**
    * Adds a route.
