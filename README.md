@@ -21,7 +21,6 @@ ThanhHoa is a lightweight, high-performance web framework for Bun, designed to m
 - 🛡️ **Helmet Middleware**: Enhanced security headers for HTTP requests.
 - 📈 **Rate Limiting**: Middleware to limit the number of requests from the same client.
 - 🗜️ **Compression Middleware**: Gzip compression for response bodies.
-- 🔄 **Middleware Support**: Custom middleware for caching, compression, CORS, security, and rate limiting.
 
 ## Installation
 
@@ -39,7 +38,11 @@ import { ThanhHoa, type IRequestContext } from '@thanhhoajs/thanhhoa';
 const app = new ThanhHoa();
 
 app.get('/', (ctx: IRequestContext) => {
-  return new Response('Hello, ThanhHoa!');
+  return new Response('Hello, ThanhHoa!', {
+    headers: {
+      'Content-Type': 'text/plain',
+    },
+  });
 });
 
 app.listen({ port: 3000 });
