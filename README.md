@@ -102,7 +102,7 @@ app.get('/protected', authMiddleware, (ctx: IRequestContext) => {
 - Each directory can be mapped to a different URL path
 - Flexible in organizing files
 
-````typescript
+```typescript
 const app = new ThanhHoa();
 
 app.listen({
@@ -117,7 +117,8 @@ app.listen({
       directory: 'public/assets'
     }
   ]
-});```
+});
+```
 
 ## Error Handling
 
