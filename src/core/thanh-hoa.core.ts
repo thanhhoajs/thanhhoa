@@ -5,6 +5,7 @@ import {
   ThanhHoaResponse,
   type ICacheEntry,
   type IRequestContext,
+  type IThanhHoaServeOptions,
 } from '@thanhhoajs/thanhhoa';
 
 /**
@@ -20,9 +21,17 @@ export class ThanhHoa extends Router {
   private urlCache: Map<string, ICacheEntry> = new Map();
   private requestPool = new Set<Promise<any>>();
   private maxConcurrent = 1000;
+  protected options: IThanhHoaServeOptions;
 
-  constructor(protected prefix: string = '') {
+  constructor(
+    protected prefix: string = '',
+    options?: Partial<IThanhHoaServeOptions>,
+  ) {
     super();
+    this.options = {
+      staticDirectories: [],
+      ...options,
+    };
     setInterval(() => this.cleanCache(), 60000);
   }
 
@@ -55,6 +64,22 @@ export class ThanhHoa extends Router {
   }
 
   async handleRequest(req: Request, server: Server): Promise<Response> {
+    const url = new URL(req.url);
+
+    // Handle static files first, before any caching or processing
+    if (this.options.staticDirectories?.length) {
+      for (const staticDir of this.options.staticDirectories) {
+        if (url.pathname.startsWith(staticDir.path)) {
+          const filePath = url.pathname.replace(
+            staticDir.path,
+            staticDir.directory,
+          );
+          const file = Bun.file(`${process.cwd()}/${filePath}`);
+          return new Response(file);
+        }
+      }
+    }
+
     return this.addToRequestPool(async () => {
       const start = performance.now();
 
@@ -64,7 +89,6 @@ export class ThanhHoa extends Router {
           !urlEntry ||
           performance.now() - urlEntry.timestamp > ThanhHoa.CACHE_TTL
         ) {
-          const url = new URL(req.url);
           urlEntry = { url, timestamp: start };
 
           if (this.urlCache.size >= ThanhHoa.CACHE_SIZE) {
@@ -84,7 +108,7 @@ export class ThanhHoa extends Router {
           query: this.parseQuery(urlEntry.url.searchParams),
         };
 
-        // Use AbortController Bun's
+        // Use AbortController for timeout handling
         const controller = new AbortController();
         const timeoutId = setTimeout(
           () => controller.abort(),
@@ -105,7 +129,7 @@ export class ThanhHoa extends Router {
             return new Response('Not Found', { status: 404 });
           }
 
-          // Stream response with ReadableStream
+          // Handle streaming responses
           if (response.body instanceof ReadableStream) {
             return new Response(response.body, {
               status: response.status,
@@ -148,7 +172,13 @@ export class ThanhHoa extends Router {
    * @param options Options for the server.
    * @returns The server instance.
    */
-  listen(options: Omit<ServeOptions, 'fetch'>): Server {
+  listen(options: IThanhHoaServeOptions): Server {
+    // Merge options
+    this.options = {
+      ...this.options,
+      ...options,
+    };
+
     const server = Bun.serve({
       ...options,
       fetch: (req: Request, server: Server) => this.handleRequest(req, server),

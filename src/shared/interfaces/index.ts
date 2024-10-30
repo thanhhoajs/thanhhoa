@@ -6,3 +6,5 @@ export * from './helmet-options.interface';
 export * from './cache-entry.interface';
 export * from './request-record.interface';
 export * from './rate-limiter-options.interface';
+export * from './static-directory-config.interface';
+export * from './thanh-hoa-serve-options.interface';

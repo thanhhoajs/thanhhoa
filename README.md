@@ -21,6 +21,7 @@ ThanhHoa is a lightweight, high-performance web framework for Bun, designed to m
 - 🛡️ **Helmet Middleware**: Enhanced security headers for HTTP requests.
 - 📈 **Rate Limiting**: Middleware to limit the number of requests from the same client.
 - 🗜️ **Compression Middleware**: Gzip compression for response bodies.
+- 🔄 **Custom static directories**: Allows configuration of multiple static directories. Flexible in organizing files.
 
 ## Installation
 
@@ -95,6 +96,29 @@ app.get('/protected', authMiddleware, (ctx: IRequestContext) => {
 });
 ```
 
+## Custom static directories
+
+- Allow users to configure multiple static directories
+- Each directory can be mapped to a different URL path
+- Flexible in organizing files
+
+````typescript
+const app = new ThanhHoa();
+
+app.listen({
+  port: 3000,
+  staticDirectories: [
+    {
+      path: '/images',
+      directory: 'public/images'
+    },
+    {
+      path: '/assets',
+      directory: 'public/assets'
+    }
+  ]
+});```
+
 ## Error Handling
 
 ThanhHoa provides built-in error handling with HttpException:
@@ -103,7 +127,7 @@ ThanhHoa provides built-in error handling with HttpException:
 app.get('/error', () => {
   throw new HttpException('Something went wrong', 500);
 });
-```
+````
 
 ## Author
 
