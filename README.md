@@ -110,13 +110,13 @@ app.listen({
   staticDirectories: [
     {
       path: '/images',
-      directory: 'public/images'
+      directory: 'public/images',
     },
     {
       path: '/assets',
-      directory: 'public/assets'
-    }
-  ]
+      directory: 'public/assets',
+    },
+  ],
 });
 ```
 
@@ -128,7 +128,7 @@ ThanhHoa provides built-in error handling with HttpException:
 app.get('/error', () => {
   throw new HttpException('Something went wrong', 500);
 });
-````
+```
 
 ## Author
 
