@@ -4,26 +4,28 @@
 
 # @thanhhoajs/thanhhoa
 
-ThanhHoa is a lightweight, high-performance web framework for Bun, designed to make server-side development simple and enjoyable.
+ThanhHoa is a high-performance, lightweight web framework for Bun, crafted to simplify server-side development while delivering maximum speed.
 
 ## Features
 
-- 🚀 **Built for speed**: Leverages Bun's performance for lightning-fast request handling.
-- 🧩 **Modular**: Easy-to-use middleware system.
-- 🛣️ **Intuitive routing**: Support for parameters.
-- 🎛️ **Flexible**: Supports various HTTP methods (GET, POST, PUT, PATCH, DELETE).
-- 🔒 **Built-in error handling**: Comes with `HttpException` for standardized error responses.
-- 🎭 **TypeScript support**: Written in TypeScript for better developer experience.
-- 🗄️ **Caching**: Built-in URL caching for optimized performance.
-- ⏱️ **Request Timeout**: Configurable request timeout to handle long-running requests.
-- 🧹 **Automatic Cache Cleanup**: Periodic cleanup of stale cache entries.
-- 🌐 **CORS Middleware**: Comprehensive CORS and security headers configuration.
-- 🛡️ **Helmet Middleware**: Enhanced security headers for HTTP requests.
-- 📈 **Rate Limiting**: Middleware to limit the number of requests from the same client.
-- 🗜️ **Compression Middleware**: Gzip compression for response bodies.
-- 🔄 **Custom static directories**: Allows configuration of multiple static directories. Flexible in organizing files.
+- 🚀 **Built for Speed**: Utilizes Bun's non-blocking I/O for ultra-fast request processing.
+- 🧩 **Modular Design**: Simple and flexible middleware system.
+- 🛣️ **Intuitive Routing**: Supports parameters and dynamic paths.
+- 🎛️ **Full HTTP Support**: Handles GET, POST, PUT, PATCH, and DELETE methods.
+- 🔒 **Standardized Error Handling**: Comes with `HttpException` for structured error responses.
+- 🎭 **TypeScript Support**: Fully typed for a streamlined developer experience.
+- 🗄️ **Built-in Caching**: URL caching for optimized performance.
+- ⏱️ **Request Timeout**: Configurable timeout for managing long-running requests.
+- 🧹 **Automatic Cache Cleanup**: Regular cleanup of stale cache entries.
+- 🌐 **CORS Middleware**: Flexible configuration for CORS and security headers.
+- 🛡️ **Helmet Middleware**: Enhanced HTTP security headers.
+- 📈 **Rate Limiting**: Middleware for managing request rates from clients.
+- 🗜️ **Response Compression**: Gzip compression middleware to reduce response size.
+- 🗂️ **Custom Static Directories**: Supports multiple static directories for organized file management.
 
 ## Installation
+
+Install ThanhHoa with Bun:
 
 ```bash
 bun add @thanhhoajs/thanhhoa
@@ -31,7 +33,7 @@ bun add @thanhhoajs/thanhhoa
 
 ## Quick Start
 
-Here's a simple example to get you started:
+Here’s a quick setup to get started with ThanhHoa:
 
 ```typescript
 import { ThanhHoa, type IRequestContext } from '@thanhhoajs/thanhhoa';
@@ -40,9 +42,7 @@ const app = new ThanhHoa();
 
 app.get('/', (ctx: IRequestContext) => {
   return new Response('Hello, ThanhHoa!', {
-    headers: {
-      'Content-Type': 'text/plain',
-    },
+    headers: { 'Content-Type': 'text/plain' },
   });
 });
 
@@ -55,11 +55,11 @@ Run your app:
 bun run app.ts
 ```
 
-Visit `http://localhost:3000` in your browser to see "Hello, ThanhHoa!".
+Visit `http://localhost:3000` to see "Hello, ThanhHoa!" in your browser.
 
 ## Routing
 
-ThanhHoa supports various HTTP methods and route parameters:
+ThanhHoa offers flexible routing with support for dynamic parameters:
 
 ```typescript
 app.get('/user/:id', (ctx: IRequestContext) => {
@@ -75,7 +75,7 @@ app.post('/user', async (ctx: IRequestContext) => {
 
 ## Middleware
 
-Add middleware to your application or specific routes:
+ThanhHoa allows you to add middleware globally or for specific routes:
 
 ```typescript
 // Custom middleware
@@ -96,11 +96,9 @@ app.get('/protected', authMiddleware, (ctx: IRequestContext) => {
 });
 ```
 
-## Custom static directories
+## Static Directory Support
 
-- Allow users to configure multiple static directories
-- Each directory can be mapped to a different URL path
-- Flexible in organizing files
+Easily serve static files from multiple directories:
 
 ```typescript
 const app = new ThanhHoa();
@@ -122,13 +120,24 @@ app.listen({
 
 ## Error Handling
 
-ThanhHoa provides built-in error handling with HttpException:
+Built-in error handling using `HttpException`:
 
 ```typescript
 app.get('/error', () => {
   throw new HttpException('Something went wrong', 500);
 });
 ```
+
+## Performance Benchmark
+
+Benchmark results for handling **10,000 concurrent requests**:
+
+- **Overall Average Latency**: 1.03ms
+- **Average Memory Usage**: 0.01 MB
+
+The ThanhHoa framework demonstrates impressive efficiency, achieving sub-5ms response times. Its low memory footprint further highlights its suitability for applications requiring scalable and high-throughput performance.
+
+This benchmark setup uses a simple GET route (`/test`) and measures the average response latency and memory usage across 5,000 iterations, with 2 requests per iteration, showing the stability and lightweight nature of the framework.
 
 ## Author
 

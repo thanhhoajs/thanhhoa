@@ -20,7 +20,7 @@ export class ThanhHoa extends Router {
 
   private urlCache: Map<string, ICacheEntry> = new Map();
   private requestPool = new Set<Promise<any>>();
-  private maxConcurrent = 1000;
+  private maxConcurrent = 65000; // 65,000 concurrent requests
   protected options: IThanhHoaServeOptions;
 
   constructor(
@@ -75,7 +75,13 @@ export class ThanhHoa extends Router {
             staticDir.directory,
           );
           const file = Bun.file(`${process.cwd()}/${filePath}`);
-          return new Response(file);
+
+          // Check if the file exists
+          if (await file.exists()) {
+            return new Response(file);
+          } else {
+            return new Response('File Not Found', { status: 404 });
+          }
         }
       }
     }
