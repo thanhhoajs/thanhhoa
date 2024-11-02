@@ -26,42 +26,46 @@ async function makeRequests(numRequests: number): Promise<number[]> {
 // Main function to run benchmark
 async function runBenchmark() {
   const server = app.listen({ port: 3000 });
+  const iterations = 5000;
+  const requestsPerIteration = 2;
 
-  console.log('Starting benchmark...');
-
-  const iterations = 5;
-  const requestsPerIteration = 1000;
+  // Arrays to store results
+  const avgLatencies: number[] = [];
+  const memoryUsages: number[] = [];
 
   for (let i = 0; i < iterations; i++) {
-    console.log(`Iteration ${i + 1}/${iterations}`);
-
     const beforeHeap = heapStats();
     const latencies = await makeRequests(requestsPerIteration);
     const afterHeap = heapStats();
 
-    const validLatencies = latencies.filter((lat) => lat !== Infinity); // Filter out failed requests
+    const validLatencies = latencies.filter((lat) => lat !== Infinity);
     const avgLatency =
       validLatencies.reduce((sum, lat) => sum + lat, 0) /
         validLatencies.length || 0;
-    const maxLatency = Math.max(...validLatencies, 0);
-    const minLatency = Math.min(...validLatencies, Infinity);
+    const memoryUsage =
+      (afterHeap.heapSize - beforeHeap.heapSize) / (1024 * 1024); // MB
 
-    console.log(`  Avg Latency: ${avgLatency.toFixed(2)}ms`);
-    console.log(
-      `  Min Latency: ${minLatency === Infinity ? 'N/A' : minLatency.toFixed(2)}ms`,
-    );
-    console.log(`  Max Latency: ${maxLatency.toFixed(2)}ms`);
-    console.log(
-      `  Memory Usage: ${(afterHeap.heapSize - beforeHeap.heapSize) / 1024 / 1024} MB`,
-    );
-
-    // Wait a bit between iterations to stabilize the system
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    avgLatencies.push(avgLatency);
+    memoryUsages.push(memoryUsage);
   }
 
-  server.stop();
-  console.log('Benchmark completed.');
+  // Calculate overall results
+  const overallResults = {
+    avgLatency:
+      avgLatencies.reduce((sum, val) => sum + val, 0) / avgLatencies.length,
+    avgMemoryUsage:
+      memoryUsages.reduce((sum, val) => sum + val, 0) / memoryUsages.length,
+  };
 
+  console.log('\nOverall Benchmark Results:');
+  console.log(
+    `  Overall Avg Latency: ${overallResults.avgLatency.toFixed(2)}ms`,
+  );
+  console.log(
+    `  Average Memory Usage: ${overallResults.avgMemoryUsage.toFixed(2)} MB`,
+  );
+
+  server.stop();
   process.exit(0);
 }
 
