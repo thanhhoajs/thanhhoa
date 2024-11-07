@@ -63,8 +63,32 @@ export class ThanhHoa extends Router {
     }
   }
 
+  private async handleOptions(req: Request, server: Server): Promise<Response> {
+    const headers = new Headers();
+
+    headers.set(
+      'Access-Control-Allow-Origin',
+      req.headers.get('origin') || '*',
+    );
+    headers.set(
+      'Access-Control-Allow-Methods',
+      'GET, POST, PUT, DELETE, OPTIONS',
+    );
+    headers.set(
+      'Access-Control-Allow-Headers',
+      req.headers.get('access-control-request-headers') || '*',
+    );
+    headers.set('Access-Control-Max-Age', '86400');
+
+    return new Response(null, { status: 204, headers });
+  }
+
   async handleRequest(req: Request, server: Server): Promise<Response> {
     const url = new URL(req.url);
+
+    if (req.method === 'OPTIONS') {
+      return this.handleOptions(req, server);
+    }
 
     // Handle static files first, before any caching or processing
     if (this.options.staticDirectories?.length) {

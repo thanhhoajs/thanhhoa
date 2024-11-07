@@ -1,6 +1,6 @@
 {
   "name": "@thanhhoajs/thanhhoa",
-  "version": "0.0.4-beta.1",
+  "version": "0.0.4-beta.2",
   "description": "ThanhHoa is a lightweight, high-performance web framework for Bun, designed to make server-side development simple and enjoyable.",
   "author": "Nguyen Nhu Khanh <kwalker.nnk@gmail.com>",
   "license": "MIT",
