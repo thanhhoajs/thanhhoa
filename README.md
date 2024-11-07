@@ -130,14 +130,14 @@ app.get('/error', () => {
 
 ## Performance Benchmark
 
-Benchmark results for handling **10,000 concurrent requests**:
+**Handling 10,000 concurrent requests:**
 
-- **Overall Average Latency**: 1.03ms
-- **Average Memory Usage**: 0.01 MB
+- **Average Latency**: 1.03ms
+- **Memory Usage**: 0.01 MB
 
-The ThanhHoa framework demonstrates impressive efficiency, achieving sub-5ms response times. Its low memory footprint further highlights its suitability for applications requiring scalable and high-throughput performance.
+The **ThanhHoa framework** shines with sub-2ms response times and minimal memory usage, making it perfect for high-throughput applications.
 
-This benchmark setup uses a simple GET route (`/test`) and measures the average response latency and memory usage across 5,000 iterations, with 2 requests per iteration, showing the stability and lightweight nature of the framework.
+_Setup_: Simple GET route (`/test`) over 5,000 iterations, 2 requests per iteration—showcasing its stability and lightweight nature. 🚀✨
 
 ## Author
 
