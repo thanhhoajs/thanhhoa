@@ -3,6 +3,7 @@ import type {
   IRequestContext,
   Middleware,
 } from '@thanhhoajs/thanhhoa';
+import crypto from 'crypto';
 
 export const cacheMiddleware = (): Middleware => {
   return async (context: IRequestContext, next: INextFunction) => {
@@ -10,7 +11,11 @@ export const cacheMiddleware = (): Middleware => {
 
     const headers = new Headers(response.headers);
     headers.set('Vary', 'Accept-Encoding');
-    headers.set('ETag', `W/"${Date.now()}"`);
+    const etag = crypto
+      .createHash('md5')
+      .update(await response.text())
+      .digest('hex');
+    headers.set('ETag', `W/"${etag}"`);
     headers.set('Last-Modified', new Date().toUTCString());
 
     return new Response(response.body, {

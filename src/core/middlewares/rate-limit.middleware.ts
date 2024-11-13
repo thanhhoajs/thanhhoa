@@ -30,7 +30,10 @@ class RateLimiter {
       }
     };
 
-    setInterval(cleanup, Math.min(this.options.windowMs, 60000));
+    setInterval(
+      cleanup,
+      Math.max(Math.min(this.options.windowMs, 60000), 10000),
+    );
   }
 
   getClientKey(context: IRequestContext): string {

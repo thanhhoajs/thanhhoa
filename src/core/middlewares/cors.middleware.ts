@@ -88,8 +88,8 @@ export const corsMiddleware = (
     }
 
     // Handle origin
-    const requestOrigin = context.request.headers.get('Origin');
     let allowOrigin: string | null = '*';
+    const requestOrigin = context.request.headers.get('Origin');
 
     if (typeof corsOptions.origin === 'boolean') {
       allowOrigin = corsOptions.origin ? requestOrigin : null;
@@ -99,6 +99,10 @@ export const corsMiddleware = (
         : null;
     } else if (typeof corsOptions.origin === 'string') {
       allowOrigin = corsOptions.origin;
+    } else if (typeof corsOptions.origin === 'function') {
+      allowOrigin = (
+        corsOptions.origin as (origin: string | null) => string | null
+      )(requestOrigin);
     }
 
     // Set basic CORS headers
