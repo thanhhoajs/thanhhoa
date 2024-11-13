@@ -153,17 +153,20 @@ export const helmetMiddleware = (
       headers.set('Strict-Transport-Security', hstsValue);
     }
 
+    const formatDirectives = (directives: Record<string, string | string[]>) =>
+      Object.entries(directives)
+        .map(
+          ([key, value]) =>
+            `${key} ${Array.isArray(value) ? value.join(' ') : value}`,
+        )
+        .join('; ');
+
     // Content Security Policy
     if (helmetOptions.contentSecurityPolicy) {
-      const cspDirectives = Object.entries(helmetOptions.contentSecurityPolicy)
-        .map(([key, value]) => {
-          if (Array.isArray(value)) {
-            return `${key} ${value.join(' ')}`;
-          }
-          return `${key} ${value}`;
-        })
-        .join('; ');
-      headers.set('Content-Security-Policy', cspDirectives);
+      headers.set(
+        'Content-Security-Policy',
+        formatDirectives(helmetOptions.contentSecurityPolicy),
+      );
     }
 
     // CSP Report Only
@@ -188,15 +191,10 @@ export const helmetMiddleware = (
 
     // Permissions Policy
     if (helmetOptions.permissionsPolicy) {
-      const policies = Object.entries(helmetOptions.permissionsPolicy)
-        .map(([feature, allowlist]) => {
-          if (Array.isArray(allowlist)) {
-            return `${feature}=(${allowlist.join(' ')})`;
-          }
-          return `${feature}=${allowlist}`;
-        })
-        .join(', ');
-      headers.set('Permissions-Policy', policies);
+      headers.set(
+        'Permissions-Policy',
+        formatDirectives(helmetOptions.permissionsPolicy),
+      );
     }
 
     // Cross-Origin Policies

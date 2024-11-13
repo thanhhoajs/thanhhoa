@@ -1,4 +1,4 @@
-import type { ServeOptions, Server } from 'bun';
+import type { Server } from 'bun';
 import {
   HttpException,
   Router,

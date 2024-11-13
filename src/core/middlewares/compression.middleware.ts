@@ -42,7 +42,6 @@ export const compression = (options: ZlibCompressionOptions): Middleware => {
     const headers = new Headers(response.headers);
     headers.set('Content-Encoding', 'gzip');
     headers.set('Content-Length', compressed.length.toString());
-    headers.delete('content-length');
 
     // Returns a new response with a compressed body
     return new Response(compressed, {
