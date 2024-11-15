@@ -1,6 +1,6 @@
 {
   "name": "@thanhhoajs/thanhhoa",
-  "version": "0.0.4-beta.2",
+  "version": "0.0.4-beta.3",
   "description": "ThanhHoa is a lightweight, high-performance web framework for Bun, designed to make server-side development simple and enjoyable.",
   "author": "Nguyen Nhu Khanh <kwalker.nnk@gmail.com>",
   "license": "MIT",
@@ -23,19 +23,25 @@
     "backend"
   ],
   "type": "module",
-  "module": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
   "files": [
-    "src"
+    "dist"
   ],
   "scripts": {
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"benchmark/**/*.ts\"",
     "test": "bun test thanh-hoa.test.ts",
     "benchmark": "bun run benchmark/index.ts",
-    "release": "bun run format && bun run test && bun publish"
+    "build": "tsc",
+    "release": "bun run format && bun run test && bun run build && bun publish"
   },
   "devDependencies": {
     "@types/bun": "latest",

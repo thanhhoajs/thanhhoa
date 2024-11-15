@@ -89,4 +89,15 @@ export interface IHelmetOptions {
         executionContexts?: boolean;
       }
     | false;
+
+  // Network Access Headers
+  privateNetwork?: boolean;
+  allowPrivateNetwork?: boolean;
+
+  // Additional Security Settings
+  secureHeaders?: boolean; // Enable/disable all basic security headers
+  xssProtection?: boolean | string; // Can be true/'1; mode=block'
+  customSecurityHeaders?: {
+    [key: string]: string;
+  };
 }

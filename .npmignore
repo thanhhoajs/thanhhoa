@@ -1,0 +1,41 @@
+# Development files
+src/
+test/
+benchmark/
+examples/
+docs/
+
+# Config files
+.github/
+.vscode/
+.editorconfig
+.eslintrc
+.prettierrc
+tsconfig.json
+bun.lockb
+
+# Build process
+node_modules/
+coverage/
+.nyc_output/
+
+# Misc
+.DS_Store
+*.log
+.env*
+*.tsbuildinfo
+
+# Git
+.git/
+.gitignore
+
+# Test files
+*.test.ts
+*.spec.ts
+
+# Debug files
+*.map
+
+# CI/CD
+.travis.yml
+.circleci/

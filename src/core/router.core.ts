@@ -8,11 +8,19 @@ import type {
 import { Logger } from '@thanhhoajs/logger';
 
 /**
+ * Interface for cached route matches
+ */
+interface RouteMatch {
+  handler: (context: IRequestContext) => Promise<Response>;
+}
+
+/**
  * Represents the interface for a router.
  */
 export class Router {
   private routes: IRoute[] = [];
   private globalMiddlewares: Middleware[] = [];
+  private routeCache = new Map<string, RouteMatch>();
   protected logger = Logger.get('THANHHOA');
 
   constructor(protected prefix: string = '') {}
@@ -152,6 +160,10 @@ export class Router {
    * @returns {Promise<Response | null>} The promise of the response.
    */
   protected async handle(context: IRequestContext): Promise<Response | null> {
+    const cacheKey = `${context.request.method}:${context.request.url}`;
+    const cached = this.routeCache.get(cacheKey);
+    if (cached) return cached.handler(context);
+
     const { request } = context;
     const method = request.method as HttpMethod;
     const url = new URL(request.url);
