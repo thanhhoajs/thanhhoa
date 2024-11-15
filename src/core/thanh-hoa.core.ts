@@ -1,5 +1,6 @@
 import type { Server } from 'bun';
 import {
+  AsyncPool,
   HttpException,
   Router,
   ThanhHoaResponse,
@@ -17,9 +18,11 @@ export class ThanhHoa extends Router {
   private static readonly CACHE_SIZE = 10000;
   private static readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
   private static readonly REQUEST_TIMEOUT = 30000; // 30 seconds
+  private static readonly REQUEST_POOL_SIZE = 1000;
 
   private urlCache: Map<string, ICacheEntry> = new Map();
-  private requestPool = new Set<Promise<any>>();
+  private requestPool = new AsyncPool(ThanhHoa.REQUEST_POOL_SIZE);
+  private staticFileCache = new Map<string, Response>();
   private maxConcurrent = 65000; // 65,000 concurrent requests
   protected options: IThanhHoaServeOptions;
 
@@ -84,116 +87,124 @@ export class ThanhHoa extends Router {
   }
 
   async handleRequest(req: Request, server: Server): Promise<Response> {
-    const url = new URL(req.url);
+    return this.requestPool.execute(async () => {
+      const url = new URL(req.url);
 
-    if (req.method === 'OPTIONS') {
-      return this.handleOptions(req, server);
-    }
-
-    // Handle static files first, before any caching or processing
-    if (this.options.staticDirectories?.length) {
-      for (const staticDir of this.options.staticDirectories) {
-        if (url.pathname.startsWith(staticDir.path)) {
-          const filePath = url.pathname.replace(
-            staticDir.path,
-            staticDir.directory,
-          );
-          const file = Bun.file(`${process.cwd()}/${filePath}`);
-
-          // Check if the file exists
-          if (await file.exists()) {
-            return new Response(file);
-          } else {
-            return new Response('File Not Found', { status: 404 });
-          }
-        }
+      if (req.method === 'OPTIONS') {
+        return this.handleOptions(req, server);
       }
-    }
 
-    return this.addToRequestPool(async () => {
-      const start = performance.now();
+      // Cache static file responses
+      if (this.options.staticDirectories?.length) {
+        const cacheKey = url.pathname;
+        const cachedResponse = this.staticFileCache.get(cacheKey);
+        if (cachedResponse) return cachedResponse.clone();
 
-      try {
-        let urlEntry = this.urlCache.get(req.url);
-        if (
-          !urlEntry ||
-          performance.now() - urlEntry.timestamp > ThanhHoa.CACHE_TTL
-        ) {
-          urlEntry = { url, timestamp: start };
+        for (const staticDir of this.options.staticDirectories) {
+          if (url.pathname.startsWith(staticDir.path)) {
+            const filePath = url.pathname.replace(
+              staticDir.path,
+              staticDir.directory,
+            );
+            const file = Bun.file(`${process.cwd()}/${filePath}`);
 
-          if (this.urlCache.size >= ThanhHoa.CACHE_SIZE) {
-            const oldestKey = this.urlCache.keys().next().value;
-            if (oldestKey !== undefined) {
-              this.urlCache.delete(oldestKey);
+            // Check if the file exists
+            if (await file.exists()) {
+              const response = new Response(file);
+              this.staticFileCache.set(cacheKey, response.clone());
+              return response;
+            } else {
+              return new Response('File Not Found', { status: 404 });
             }
           }
-
-          this.urlCache.set(req.url, urlEntry);
         }
+      }
 
-        const context: IRequestContext = {
-          socketAddress: server.requestIP(req),
-          request: req,
-          params: {},
-          query: this.parseQuery(urlEntry.url.searchParams),
-        };
-
-        // Use AbortController for timeout handling
-        const controller = new AbortController();
-        const timeoutId = setTimeout(
-          () => controller.abort(),
-          ThanhHoa.REQUEST_TIMEOUT,
-        );
+      return this.addToRequestPool(async () => {
+        const start = performance.now();
 
         try {
-          const response = await Promise.race([
-            this.handle(context),
-            new Promise<Response>((_, reject) => {
-              controller.signal.addEventListener('abort', () => {
-                reject(new HttpException('Request Timeout', 408));
-              });
-            }),
-          ]);
+          let urlEntry = this.urlCache.get(req.url);
+          if (
+            !urlEntry ||
+            performance.now() - urlEntry.timestamp > ThanhHoa.CACHE_TTL
+          ) {
+            urlEntry = { url, timestamp: start };
 
-          if (!response) {
-            return new Response('Not Found', { status: 404 });
+            if (this.urlCache.size >= ThanhHoa.CACHE_SIZE) {
+              const oldestKey = this.urlCache.keys().next().value;
+              if (oldestKey !== undefined) {
+                this.urlCache.delete(oldestKey);
+              }
+            }
+
+            this.urlCache.set(req.url, urlEntry);
           }
 
-          // Handle streaming responses
-          if (response.body instanceof ReadableStream) {
-            return new Response(response.body, {
-              status: response.status,
-              headers: new Headers(response.headers),
-            });
-          }
+          const context: IRequestContext = {
+            socketAddress: server.requestIP(req),
+            request: req,
+            params: {},
+            query: this.parseQuery(urlEntry.url.searchParams),
+          };
 
-          // Handle other response types
-          const contentType = response.headers.get('content-type');
-          const headers = new Headers(response.headers);
-          headers.set(
-            'content-type',
-            contentType || 'application/octet-stream',
+          // Use AbortController for timeout handling
+          const controller = new AbortController();
+          const timeoutId = setTimeout(
+            () => controller.abort(),
+            ThanhHoa.REQUEST_TIMEOUT,
           );
 
-          return new Response(response.body, {
-            status: response.status,
-            headers,
-          });
+          try {
+            const response = await Promise.race([
+              this.handle(context),
+              new Promise<Response>((_, reject) => {
+                controller.signal.addEventListener('abort', () => {
+                  reject(new HttpException('Request Timeout', 408));
+                });
+              }),
+            ]);
+
+            if (!response) {
+              return new Response('Not Found', { status: 404 });
+            }
+
+            // Handle streaming responses
+            if (response.body instanceof ReadableStream) {
+              return new Response(response.body, {
+                status: response.status,
+                headers: new Headers(response.headers),
+              });
+            }
+
+            // Handle other response types
+            const contentType = response.headers.get('content-type');
+            const headers = new Headers(response.headers);
+            headers.set(
+              'content-type',
+              contentType || 'application/octet-stream',
+            );
+
+            return new Response(response.body, {
+              status: response.status,
+              headers,
+            });
+          } finally {
+            clearTimeout(timeoutId);
+          }
+        } catch (error) {
+          this.logger.error('Error handling request:', error);
+
+          if (error instanceof HttpException) {
+            return new ThanhHoaResponse(error).toResponse();
+          }
+
+          throw error;
         } finally {
-          clearTimeout(timeoutId);
+          const end = performance.now();
+          this.logger.debug(`Request processed in ${end - start}ms`);
         }
-      } catch (error) {
-        this.logger.error('Error handling request:', error);
-
-        if (error instanceof HttpException) {
-          return new ThanhHoaResponse(error).toResponse();
-        }
-
-        throw error;
-      } finally {
-        const end = performance.now();
-        this.logger.debug(`Request processed in ${end - start}ms`);
-      }
+      });
     });
   }
 

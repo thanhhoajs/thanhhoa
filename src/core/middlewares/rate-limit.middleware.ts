@@ -9,6 +9,7 @@ import {
 
 class RateLimiter {
   private store = new Map<string, IRequestRecord>();
+  private requestCounts = new Map<string, number[]>();
   private readonly options: Required<IRateLimiterOptions>;
 
   constructor(options: IRateLimiterOptions) {
@@ -45,20 +46,23 @@ class RateLimiter {
     return `${ip}:${req.method}:${new URL(req.url).pathname}`;
   }
 
-  async getRateLimit(clientKey: string): Promise<IRequestRecord> {
-    const now = performance.now();
-    let record = this.store.get(clientKey);
+  async getRateLimit(clientKey: string): Promise<boolean> {
+    const now = Date.now();
+    const timestamps = this.requestCounts.get(clientKey) || [];
+    const windowStart = now - this.options.windowMs;
 
-    if (!record || now >= record.resetTime) {
-      record = {
-        count: 0,
-        tokens: this.options.maxRequests,
-        resetTime: now + this.options.windowMs,
-      };
-      this.store.set(clientKey, record);
+    // Remove outdated timestamps
+    while (timestamps.length && timestamps[0] < windowStart) {
+      timestamps.shift();
     }
 
-    return record;
+    if (timestamps.length >= this.options.maxRequests) {
+      return false;
+    }
+
+    timestamps.push(now);
+    this.requestCounts.set(clientKey, timestamps);
+    return true;
   }
 }
 
@@ -95,44 +99,21 @@ export const rateLimiter = (options: IRateLimiterOptions): Middleware => {
     next: INextFunction,
   ): Promise<Response> => {
     const clientKey = limiter.getClientKey(context);
-    const record = await limiter.getRateLimit(clientKey);
+    const allowed = await limiter.getRateLimit(clientKey);
 
-    // Check rate limit
-    if (record.tokens <= 0) {
-      const retryAfter = Math.ceil(
-        (record.resetTime - performance.now()) / 1000,
-      );
-
+    if (!allowed) {
       throw new HttpException(options.message || 'Too many requests', 429, {
-        'Retry-After': retryAfter.toString(),
+        'Retry-After': Math.ceil(
+          (Date.now() - performance.now()) / 1000,
+        ).toString(),
         'X-RateLimit-Limit': options.maxRequests.toString(),
         'X-RateLimit-Remaining': '0',
         'X-RateLimit-Reset': new Date(
-          Date.now() + (record.resetTime - performance.now()),
+          Date.now() + (Date.now() - performance.now()),
         ).toUTCString(),
       });
     }
 
-    try {
-      // Reduce token before processing request
-
-      record.tokens--;
-      record.count++;
-
-      const response = await next();
-
-      // Restore token if needed
-      if (options.skipSuccessfulRequests && response.ok) {
-        record.tokens = Math.min(record.tokens + 1, options.maxRequests);
-      }
-
-      return response;
-    } catch (error) {
-      // Restore token for failed requests if needed
-      if (options.skipFailedRequests) {
-        record.tokens = Math.min(record.tokens + 1, options.maxRequests);
-      }
-      throw error;
-    }
+    return next();
   };
 };

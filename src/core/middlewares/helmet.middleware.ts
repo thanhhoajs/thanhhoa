@@ -73,7 +73,21 @@ const defaultHelmetOptions: IHelmetOptions = {
     noStore: true,
     mustRevalidate: true,
   },
+
+  privateNetwork: false,
+  allowPrivateNetwork: false,
+
+  secureHeaders: true,
+  xssProtection: '1; mode=block',
+  customSecurityHeaders: {},
 };
+
+const securityHeaders = new Map([
+  ['X-XSS-Protection', '1; mode=block'],
+  ['X-Content-Type-Options', 'nosniff'],
+  ['X-Frame-Options', 'DENY'],
+  ['Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload'],
+]);
 
 /**
  * Enhanced Helmet middleware for comprehensive HTTP security headers.
@@ -125,6 +139,10 @@ export const helmetMiddleware = (
     }
 
     const headers = response.headers;
+
+    securityHeaders.forEach((value, key) => {
+      headers.set(key, value);
+    });
 
     // Basic Security Headers
     if (helmetOptions.xssFilter) {
@@ -255,6 +273,36 @@ export const helmetMiddleware = (
         clearSiteDataValues.push('"executionContexts"');
       if (clearSiteDataValues.length > 0) {
         headers.set('Clear-Site-Data', clearSiteDataValues.join(', '));
+      }
+    }
+
+    // Add network headers after other headers
+    if (helmetOptions.privateNetwork) {
+      headers.set('Access-Control-Request-Private-Network', 'true');
+    }
+
+    if (helmetOptions.allowPrivateNetwork) {
+      headers.set('Access-Control-Allow-Private-Network', 'true');
+    }
+
+    // Additional Security Headers
+    if (helmetOptions.secureHeaders) {
+      if (helmetOptions.xssProtection) {
+        headers.set(
+          'X-XSS-Protection',
+          typeof helmetOptions.xssProtection === 'string'
+            ? helmetOptions.xssProtection
+            : '1; mode=block',
+        );
+      }
+
+      // Apply custom security headers
+      if (helmetOptions.customSecurityHeaders) {
+        Object.entries(helmetOptions.customSecurityHeaders).forEach(
+          ([key, value]) => {
+            headers.set(key, value);
+          },
+        );
       }
     }
 

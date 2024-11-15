@@ -22,15 +22,13 @@ const defaultCORSOptions: ICORSOptions = {
   exposedHeaders: ['Content-Length', 'Content-Range', 'X-Content-Range'],
   credentials: false,
   maxAge: 86400,
-  secureHeaders: true,
   preflightContinue: false,
   optionsSuccessStatus: 204,
-  contentSecurityPolicy: true,
-  referrerPolicy: 'strict-origin-when-cross-origin',
-  xssProtection: true,
   privateNetwork: false,
   allowPrivateNetwork: false,
 };
+
+const preflightCache = new Map<string, Response>();
 
 /**
  * Enhanced CORS middleware to handle Cross-Origin Resource Sharing settings for HTTP requests.
@@ -66,19 +64,20 @@ export const corsMiddleware = (
   return async (context: IRequestContext, next: INextFunction) => {
     let response: Response;
 
-    try {
-      // Handle preflight requests
-      if (context.request.method === 'OPTIONS') {
-        if (!corsOptions.preflightContinue) {
-          response = new Response(null, {
-            status: corsOptions.optionsSuccessStatus,
-          });
-        } else {
-          response = await next();
-        }
-      } else {
-        response = await next();
+    if (context.request.method === 'OPTIONS') {
+      const cacheKey = context.request.url;
+      if (preflightCache.has(cacheKey)) {
+        return preflightCache.get(cacheKey)!;
       }
+      response = new Response(null, {
+        status: corsOptions.optionsSuccessStatus,
+      });
+      preflightCache.set(cacheKey, response);
+      return response;
+    }
+
+    try {
+      response = await next();
     } catch (error) {
       if (error instanceof HttpException) {
         response = new ThanhHoaResponse(error).toResponse();
@@ -147,36 +146,6 @@ export const corsMiddleware = (
         'Access-Control-Max-Age',
         corsOptions.maxAge.toString(),
       );
-    }
-
-    // Security Headers
-    if (corsOptions.secureHeaders) {
-      // Basic security headers
-      response.headers.set('X-Content-Type-Options', 'nosniff');
-      response.headers.set('X-Frame-Options', 'DENY');
-      response.headers.set(
-        'Strict-Transport-Security',
-        'max-age=63072000; includeSubDomains; preload',
-      );
-
-      // Content Security Policy
-      if (corsOptions.contentSecurityPolicy) {
-        const cspValue =
-          typeof corsOptions.contentSecurityPolicy === 'string'
-            ? corsOptions.contentSecurityPolicy
-            : "default-src 'self'; img-src 'self' data: https:; script-src 'self'";
-        response.headers.set('Content-Security-Policy', cspValue);
-      }
-
-      // XSS Protection
-      if (corsOptions.xssProtection) {
-        response.headers.set('X-XSS-Protection', '1; mode=block');
-      }
-
-      // Referrer Policy
-      if (corsOptions.referrerPolicy) {
-        response.headers.set('Referrer-Policy', corsOptions.referrerPolicy);
-      }
     }
 
     // Private Network Access

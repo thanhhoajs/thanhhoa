@@ -3,22 +3,28 @@ import type {
   IRequestContext,
   Middleware,
 } from '@thanhhoajs/thanhhoa';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 export const cacheMiddleware = (): Middleware => {
   return async (context: IRequestContext, next: INextFunction) => {
     const response = await next();
+    const body = await response.arrayBuffer();
+    const etag = `"${await crypto.subtle.digest('SHA-1', body).then((hash) =>
+      Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join(''),
+    )}"`;
 
     const headers = new Headers(response.headers);
-    headers.set('Vary', 'Accept-Encoding');
-    const etag = crypto
-      .createHash('md5')
-      .update(await response.text())
-      .digest('hex');
-    headers.set('ETag', `W/"${etag}"`);
-    headers.set('Last-Modified', new Date().toUTCString());
+    headers.set('ETag', etag);
+    headers.set('Cache-Control', 'public, max-age=3600');
 
-    return new Response(response.body, {
+    const ifNoneMatch = context.request.headers.get('If-None-Match');
+    if (ifNoneMatch === etag) {
+      return new Response(null, { status: 304, headers });
+    }
+
+    return new Response(body, {
       status: response.status,
       headers,
     });
