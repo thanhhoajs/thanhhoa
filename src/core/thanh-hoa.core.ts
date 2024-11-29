@@ -68,19 +68,18 @@ export class ThanhHoa extends Router {
 
   private async handleOptions(req: Request, server: Server): Promise<Response> {
     const headers = new Headers();
+    const origin = req.headers.get('origin');
 
-    headers.set(
-      'Access-Control-Allow-Origin',
-      req.headers.get('origin') || '*',
-    );
+    headers.set('Access-Control-Allow-Origin', origin || '*');
     headers.set(
       'Access-Control-Allow-Methods',
-      'GET, POST, PUT, DELETE, OPTIONS',
+      'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     );
     headers.set(
       'Access-Control-Allow-Headers',
       req.headers.get('access-control-request-headers') || '*',
     );
+    headers.set('Access-Control-Allow-Credentials', 'true');
     headers.set('Access-Control-Max-Age', '86400');
 
     return new Response(null, { status: 204, headers });
