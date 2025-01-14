@@ -4,4 +4,8 @@ export interface IRateLimiterOptions {
   message?: string;
   skipFailedRequests?: boolean;
   skipSuccessfulRequests?: boolean;
+  redis?: {
+    enabled: boolean;
+    url?: string; // Redis connection URL
+  };
 }

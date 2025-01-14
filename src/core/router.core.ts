@@ -6,6 +6,7 @@ import type {
   RouteHandler,
 } from '@thanhhoajs/thanhhoa';
 import { Logger } from '@thanhhoajs/logger';
+import { LRUCache } from 'lru-cache';
 
 /**
  * Interface for cached route matches
@@ -20,10 +21,16 @@ interface RouteMatch {
 export class Router {
   private routes: IRoute[] = [];
   private globalMiddlewares: Middleware[] = [];
-  private routeCache = new Map<string, RouteMatch>();
+  private routeCache: LRUCache<string, RouteMatch>;
   protected logger = Logger.get('THANHHOA');
 
-  constructor(protected prefix: string = '') {}
+  constructor(protected prefix: string = '') {
+    this.routeCache = new LRUCache({
+      max: 1000, // Store up to 1000 route matches
+      ttl: 1000 * 60 * 5, // 5 minutes TTL
+      updateAgeOnGet: true,
+    });
+  }
 
   /**
    * Adds a route.

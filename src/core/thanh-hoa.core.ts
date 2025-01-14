@@ -1,3 +1,4 @@
+import { LRUCache } from 'lru-cache';
 import type { Server } from 'bun';
 import {
   AsyncPool,
@@ -20,10 +21,9 @@ export class ThanhHoa extends Router {
   private static readonly REQUEST_TIMEOUT = 30000; // 30 seconds
   private static readonly REQUEST_POOL_SIZE = 1000;
 
-  private urlCache: Map<string, ICacheEntry> = new Map();
+  private urlCache: LRUCache<string, ICacheEntry>;
+  private staticFileCache: LRUCache<string, Response>;
   private requestPool = new AsyncPool(ThanhHoa.REQUEST_POOL_SIZE);
-  private staticFileCache = new Map<string, Response>();
-  private maxConcurrent = 65000; // 65,000 concurrent requests
   protected options: IThanhHoaServeOptions;
 
   constructor(
@@ -35,16 +35,19 @@ export class ThanhHoa extends Router {
       staticDirectories: [],
       ...options,
     };
-    setInterval(() => this.cleanCache(), 60000);
-  }
 
-  private cleanCache(): void {
-    const now = performance.now();
-    for (const [key, entry] of this.urlCache) {
-      if (now - entry.timestamp > ThanhHoa.CACHE_TTL) {
-        this.urlCache.delete(key);
-      }
-    }
+    // Initialize LRU Caches
+    this.urlCache = new LRUCache({
+      max: ThanhHoa.CACHE_SIZE,
+      ttl: ThanhHoa.CACHE_TTL,
+      updateAgeOnGet: true,
+    });
+
+    this.staticFileCache = new LRUCache({
+      max: 1000, // Limit static file cache to 1000 entries
+      ttl: 60 * 60 * 1000, // 1 hour TTL for static files
+      updateAgeOnGet: true,
+    });
   }
 
   private parseQuery(searchParams: URLSearchParams): Record<string, string> {
@@ -52,18 +55,7 @@ export class ThanhHoa extends Router {
   }
 
   private async addToRequestPool<T>(task: () => Promise<T>): Promise<T> {
-    if (this.requestPool.size >= this.maxConcurrent) {
-      await Promise.race(Array.from(this.requestPool));
-    }
-
-    const promise = task();
-    this.requestPool.add(promise);
-
-    try {
-      return await promise;
-    } finally {
-      this.requestPool.delete(promise);
-    }
+    return this.requestPool.execute(task);
   }
 
   private async handleOptions(req: Request, server: Server): Promise<Response> {
@@ -86,7 +78,7 @@ export class ThanhHoa extends Router {
   }
 
   async handleRequest(req: Request, server: Server): Promise<Response> {
-    return this.requestPool.execute(async () => {
+    return this.addToRequestPool(async () => {
       const url = new URL(req.url);
 
       if (req.method === 'OPTIONS') {
@@ -124,19 +116,8 @@ export class ThanhHoa extends Router {
 
         try {
           let urlEntry = this.urlCache.get(req.url);
-          if (
-            !urlEntry ||
-            performance.now() - urlEntry.timestamp > ThanhHoa.CACHE_TTL
-          ) {
+          if (!urlEntry) {
             urlEntry = { url, timestamp: start };
-
-            if (this.urlCache.size >= ThanhHoa.CACHE_SIZE) {
-              const oldestKey = this.urlCache.keys().next().value;
-              if (oldestKey !== undefined) {
-                this.urlCache.delete(oldestKey);
-              }
-            }
-
             this.urlCache.set(req.url, urlEntry);
           }
 
