@@ -132,7 +132,7 @@ app.get('/error', () => {
 
 **Handling 10,000 concurrent requests:**
 
-- **Average Latency**: 1.03ms
+- **Average Latency**: 0.68ms
 - **Memory Usage**: 0.01 MB
 
 The **ThanhHoa framework** shines with sub-2ms response times and minimal memory usage, making it perfect for high-throughput applications.

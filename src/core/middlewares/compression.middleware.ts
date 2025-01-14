@@ -27,26 +27,20 @@ export const compression = (options: ZlibCompressionOptions): Middleware => {
   ): Promise<Response> => {
     const response = await next();
 
-    // Check Accept-Encoding header
     const acceptEncoding = context.request.headers.get('accept-encoding') || '';
     if (!acceptEncoding.includes('gzip')) {
       return response;
     }
 
-    // Get response body as ArrayBuffer
     const body = await response.arrayBuffer();
-
-    // Compress the response body using Bun.gzipSync
     const compressed = Bun.gzipSync(body, options);
 
     const headers = new Headers(response.headers);
     headers.set('Content-Encoding', 'gzip');
     headers.set('Content-Length', compressed.length.toString());
 
-    // Returns a new response with a compressed body
     return new Response(compressed, {
       status: response.status,
-      statusText: response.statusText,
       headers,
     });
   };

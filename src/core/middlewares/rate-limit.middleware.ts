@@ -1,117 +1,130 @@
+import { LRUCache } from 'lru-cache';
 import {
-  HttpException,
   type Middleware,
   type IRequestContext,
   type INextFunction,
-  type IRequestRecord,
   type IRateLimiterOptions,
 } from '@thanhhoajs/thanhhoa';
+import { RedisClientType, createClient } from 'redis';
+import { Logger } from '@thanhhoajs/logger';
 
-class RateLimiter {
-  private store = new Map<string, IRequestRecord>();
-  private requestCounts = new Map<string, number[]>();
-  private readonly options: Required<IRateLimiterOptions>;
+const logger = Logger.get('THANHHOA');
 
-  constructor(options: IRateLimiterOptions) {
-    this.options = {
-      windowMs: options.windowMs || 600000, // 10 minute
-      maxRequests: options.maxRequests || 100, // 100 request
-      message: options.message || 'Too many requests',
-      skipFailedRequests: options.skipFailedRequests || false,
-      skipSuccessfulRequests: options.skipSuccessfulRequests || false,
-    };
-
-    // Periodic cleanup with performance.now()
-    const cleanup = () => {
-      const now = performance.now();
-      for (const [key, record] of this.store) {
-        if (now >= record.resetTime) {
-          this.store.delete(key);
-        }
-      }
-    };
-
-    setInterval(
-      cleanup,
-      Math.max(Math.min(this.options.windowMs, 60000), 10000),
-    );
-  }
-
-  getClientKey(context: IRequestContext): string {
-    const req = context.request;
-    const forwarded = req.headers.get('x-forwarded-for');
-    const ip = forwarded
-      ? forwarded.split(',')[0].trim()
-      : context.socketAddress?.address;
-    return `${ip}:${req.method}:${new URL(req.url).pathname}`;
-  }
-
-  async getRateLimit(clientKey: string): Promise<boolean> {
-    const now = Date.now();
-    const timestamps = this.requestCounts.get(clientKey) || [];
-    const windowStart = now - this.options.windowMs;
-
-    // Remove outdated timestamps
-    while (timestamps.length && timestamps[0] < windowStart) {
-      timestamps.shift();
-    }
-
-    if (timestamps.length >= this.options.maxRequests) {
-      return false;
-    }
-
-    timestamps.push(now);
-    this.requestCounts.set(clientKey, timestamps);
-    return true;
-  }
+declare global {
+  var redisClient: RedisClientType | null;
 }
 
-/**
- * Returns a middleware that limits the number of requests from the same client
- * within a specified window of time.
- *
- * @param {IRateLimiterOptions} options - Options for the rate limiter.
- * @property {number} [windowMs=60000] - The window of time for the rate limit, in milliseconds.
- * @property {number} [maxRequests=1] - The maximum number of requests allowed within the window.
- * @property {string} [message='Too many requests'] - The message to return when the rate limit is exceeded.
- * @property {boolean} [skipFailedRequests=false] - Whether to skip failed requests for rate limit calculation.
- * @property {boolean} [skipSuccessfulRequests=false] - Whether to skip successful requests for rate limit calculation.
- * @returns {Middleware} A middleware that enforces the rate limit.
- *
- * @example
- * // Basic usage
- * app.use(rateLimiter());
- *
- * // Custom configuration
- * app.use(rateLimiter({
- *   windowMs: 30000, // 30 seconds
- *   maxRequests: 5, // 5 requests
- *   message: 'Too many requests, please try again later',
- *   skipFailedRequests: false,
- *   skipSuccessfulRequests: false
- * }));
- */
-export const rateLimiter = (options: IRateLimiterOptions): Middleware => {
-  const limiter = new RateLimiter(options);
+const memoryStore = new LRUCache<string, { count: number; resetTime: number }>({
+  max: 1000, // Limit the number of IPs stored
+  ttl: 60000, // TTL per IP (1 minute)
+});
 
-  return async (
-    context: IRequestContext,
-    next: INextFunction,
-  ): Promise<Response> => {
-    const clientKey = limiter.getClientKey(context);
-    const allowed = await limiter.getRateLimit(clientKey);
+export const rateLimiter = async (
+  options: IRateLimiterOptions,
+): Promise<Middleware> => {
+  if (global.redisClient === undefined) {
+    if (process.env.REDIS_ENABLED === 'true' || options.redis?.enabled) {
+      try {
+        const redisUrl = options.redis?.url || process.env.REDIS_URL;
+        if (!redisUrl) throw new Error('Redis URL is not provided.');
 
-    if (!allowed) {
-      throw new HttpException(options.message || 'Too many requests', 429, {
-        'Retry-After': Math.ceil(
-          (Date.now() - performance.now()) / 1000,
-        ).toString(),
-        'X-RateLimit-Limit': options.maxRequests.toString(),
-        'X-RateLimit-Remaining': '0',
-        'X-RateLimit-Reset': new Date(
-          Date.now() + (Date.now() - performance.now()),
-        ).toUTCString(),
-      });
+        global.redisClient = createClient({ url: redisUrl });
+        await global.redisClient.connect();
+        logger.info('Connected to Redis.');
+      } catch (error) {
+        logger.warn(
+          'Failed to connect to Redis. Falling back to in-memory rate limiting.',
+        );
+        global.redisClient = null;
+      }
+    } else {
+      logger.info('Redis is disabled. Using in-memory rate limiting.');
+      global.redisClient = null;
+    }
+  }
+
+  const redisClient = global.redisClient;
+
+  return async (context: IRequestContext, next: INextFunction) => {
+    const ip = context.socketAddress?.address || 'unknown';
+    const key = `rate-limit:${ip}`;
+
+    if (redisClient) {
+      // Redis-based rate limiting
+      try {
+        const currentCount = await redisClient.incr(key);
+        if (currentCount === 1) {
+          await redisClient.expire(key, options.windowMs / 1000);
+        }
+
+        if (currentCount > options.maxRequests) {
+          const response = new Response(
+            JSON.stringify({
+              message: options.message || 'Too many requests',
+            }),
+            {
+              status: 429,
+              headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods':
+                  'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers':
+                  'Content-Type, Authorization, Accept, Origin',
+                'Access-Control-Expose-Headers': 'Content-Type',
+                'Access-Control-Max-Age': '86400',
+                'Retry-After': (options.windowMs / 1000).toString(),
+                'X-RateLimit-Limit': options.maxRequests.toString(),
+                'X-RateLimit-Remaining': '0',
+                'X-RateLimit-Reset': new Date(
+                  Date.now() + options.windowMs,
+                ).toUTCString(),
+                Date: new Date().toUTCString(),
+              },
+            },
+          );
+          return response;
+        }
+      } catch (error) {
+        logger.error('Redis error:', error);
+        global.redisClient = null;
+      }
+    }
+
+    // In-memory rate limiting (fallback if Redis is unavailable)
+    const now = Date.now();
+    const record = memoryStore.get(key);
+
+    if (record && now < record.resetTime) {
+      if (record.count >= options.maxRequests) {
+        const response = new Response(
+          JSON.stringify({
+            message: options.message || 'Too many requests',
+          }),
+          {
+            status: 429,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods':
+                'GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS',
+              'Access-Control-Allow-Headers':
+                'Content-Type, Authorization, Accept, Origin',
+              'Access-Control-Expose-Headers': 'Content-Type',
+              'Access-Control-Max-Age': '86400',
+              'Retry-After': ((record.resetTime - now) / 1000).toString(),
+              'X-RateLimit-Limit': options.maxRequests.toString(),
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset': new Date(record.resetTime).toUTCString(),
+              Date: new Date().toUTCString(),
+            },
+          },
+        );
+        return response;
+      }
+      record.count += 1;
+    } else {
+      memoryStore.set(key, { count: 1, resetTime: now + options.windowMs });
     }
 
     return next();
