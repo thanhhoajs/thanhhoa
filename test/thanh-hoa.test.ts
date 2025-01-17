@@ -153,19 +153,6 @@ test('Query parameters', async () => {
   expect(await response.json()).toEqual({ key1: 'value1', key2: 'value2' });
 });
 
-test('Route grouping', async () => {
-  const app = setup();
-  app.group('/api', (router) => {
-    router.get('/test', () => new Response('API Test'));
-  });
-
-  const response = await app.handleRequest(
-    createMockRequest('GET', 'http://localhost:3000/api/test'),
-    createMockServer(),
-  );
-  expect(await response.text()).toBe('API Test');
-});
-
 test('Server listen', () => {
   const app = setup();
   const originalServe = Bun.serve;

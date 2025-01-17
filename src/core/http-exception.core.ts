@@ -32,11 +32,13 @@ export class HttpException extends Error {
    */
   constructor(
     message: string,
-    status: number,
+    status: number = 500,
     data?: any,
     headers?: Record<string, string | number | string[]>,
   ) {
     super(message);
+    Object.setPrototypeOf(this, HttpException.prototype);
+    this.name = 'HttpException';
     this.status = status;
     this.data = data;
     this.headers = headers;

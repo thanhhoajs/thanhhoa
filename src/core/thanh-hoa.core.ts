@@ -182,7 +182,9 @@ export class ThanhHoa extends Router {
           throw error;
         } finally {
           const end = performance.now();
-          this.logger.debug(`Request processed in ${end - start}ms`);
+          this.logger.debug(
+            `${req.method} ${req.url} - Request processed in ${end - start}ms`,
+          );
         }
       });
     });
