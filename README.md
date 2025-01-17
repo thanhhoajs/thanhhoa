@@ -4,28 +4,28 @@
 
 # @thanhhoajs/thanhhoa
 
-ThanhHoa is a high-performance, lightweight web framework for Bun, crafted to simplify server-side development while delivering maximum speed.
+ThanhHoa is a high-performance, lightweight web framework for Bun, designed to simplify server-side development while delivering maximum speed and efficiency. Built with TypeScript, ThanhHoa provides a robust and type-safe environment for building modern web applications.
 
 ## Features
 
-- 🚀 **Built for Speed**: Utilizes Bun's non-blocking I/O for ultra-fast request processing.
-- 🧩 **Modular Design**: Simple and flexible middleware system.
-- 🛣️ **Intuitive Routing**: Supports parameters and dynamic paths.
-- 🎛️ **Full HTTP Support**: Handles GET, POST, PUT, PATCH, and DELETE methods.
-- 🔒 **Standardized Error Handling**: Comes with `HttpException` for structured error responses.
-- 🎭 **TypeScript Support**: Fully typed for a streamlined developer experience.
-- 🗄️ **Built-in Caching**: URL caching for optimized performance.
+- 🚀 **Built for Speed**: Leverages Bun's non-blocking I/O for ultra-fast request processing.
+- 🧩 **Modular Design**: Simple and flexible middleware system for extending functionality.
+- 🛣️ **Intuitive Routing**: Supports dynamic routes, parameters, and multiple HTTP methods.
+- 🎛️ **Full HTTP Support**: Handles GET, POST, PUT, PATCH, and DELETE methods seamlessly.
+- 🔒 **Standardized Error Handling**: Built-in `HttpException` for structured error responses.
+- 🎭 **TypeScript Support**: Fully typed for a streamlined and type-safe developer experience.
+- 🗄️ **Built-in Caching**: URL caching for optimized performance and reduced latency.
 - ⏱️ **Request Timeout**: Configurable timeout for managing long-running requests.
-- 🧹 **Automatic Cache Cleanup**: Regular cleanup of stale cache entries.
-- 🌐 **CORS Middleware**: Flexible configuration for CORS and security headers.
-- 🛡️ **Helmet Middleware**: Enhanced HTTP security headers.
-- 📈 **Rate Limiting**: Middleware for managing request rates from clients.
-- 🗜️ **Response Compression**: Gzip compression middleware to reduce response size.
+- 🌐 **CORS Middleware**: Flexible configuration for Cross-Origin Resource Sharing (CORS) and security headers.
+- 🛡️ **Helmet Middleware**: Enhanced HTTP security headers for protecting your application.
+- 📈 **Rate Limiting**: Middleware for managing request rates from clients to prevent abuse.
+- 🗜️ **Response Compression**: Gzip compression middleware to reduce response size and improve performance.
 - 🗂️ **Custom Static Directories**: Supports multiple static directories for organized file management.
+- 📚 **Swagger Integration**: Easy setup for API documentation with Swagger UI.
 
 ## Installation
 
-Install ThanhHoa with Bun:
+Install ThanhHoa using Bun:
 
 ```bash
 bun add @thanhhoajs/thanhhoa
@@ -33,7 +33,7 @@ bun add @thanhhoajs/thanhhoa
 
 ## Quick Start
 
-Here’s a quick setup to get started with ThanhHoa:
+Here’s a quick example to get started with ThanhHoa:
 
 ```typescript
 import { ThanhHoa, type IRequestContext } from '@thanhhoajs/thanhhoa';
@@ -49,7 +49,7 @@ app.get('/', (ctx: IRequestContext) => {
 app.listen({ port: 3000 });
 ```
 
-Run your app:
+Run your application:
 
 ```bash
 bun run app.ts
@@ -59,7 +59,7 @@ Visit `http://localhost:3000` to see "Hello, ThanhHoa!" in your browser.
 
 ## Routing
 
-ThanhHoa offers flexible routing with support for dynamic parameters:
+ThanhHoa provides flexible routing with support for dynamic parameters and multiple HTTP methods:
 
 ```typescript
 app.get('/user/:id', (ctx: IRequestContext) => {
@@ -75,22 +75,24 @@ app.post('/user', async (ctx: IRequestContext) => {
 
 ## Middleware
 
-ThanhHoa allows you to add middleware globally or for specific routes:
+ThanhHoa allows you to add middleware globally or for specific routes. Middleware can be used for logging, authentication, CORS, rate limiting, and more:
 
 ```typescript
-// Custom middleware
+// Custom middleware for logging
 const logger = async (ctx: IRequestContext, next: INextFunction) => {
   console.log(`${ctx.request.method} ${ctx.request.url}`);
   return next();
 };
 
+// Adding middleware
 app.use(logger);
 app.use(corsMiddleware());
 app.use(helmetMiddleware());
-app.use(rateLimiter({...}));
+app.use(rateLimiter({ windowMs: 60000, maxRequests: 100 }));
 app.use(cacheMiddleware());
-app.use(compression({...}));
+app.use(compression());
 
+// Protected route with custom middleware
 app.get('/protected', authMiddleware, (ctx: IRequestContext) => {
   return new Response('Protected route');
 });
@@ -120,13 +122,89 @@ app.listen({
 
 ## Error Handling
 
-Built-in error handling using `HttpException`:
+ThanhHoa provides built-in error handling using `HttpException` for structured error responses:
 
 ```typescript
 app.get('/error', () => {
   throw new HttpException('Something went wrong', 500);
 });
 ```
+
+## Swagger Integration
+
+ThanhHoa makes it easy to set up API documentation using Swagger UI:
+
+```typescript
+// swagger-options.ts
+import type { Options } from 'swagger-jsdoc';
+
+const currentDir = process.cwd();
+
+export const swaggerOptions: Options = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'ThanhHoa API',
+      version: '1.0.0',
+      description: 'API documentation for ThanhHoa app',
+    },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
+  },
+  apis: [`${currentDir}/src/modules/**/*.controller.ts`],
+};
+
+// swagger-spec.ts
+import swaggerJSDoc from 'swagger-jsdoc';
+
+import { swaggerOptions } from './swagger-options';
+
+export const swaggerSpec = swaggerJSDoc(swaggerOptions);
+
+// main.ts
+import {
+  cacheMiddleware,
+  compression,
+  corsMiddleware,
+  helmetMiddleware,
+  type INextFunction,
+  type IRequestContext,
+  rateLimiter,
+  setupSwagger,
+  ThanhHoa,
+} from '@thanhhoajs/thanhhoa';
+
+import { swaggerSpec } from './common/swagger/swagger-spec';
+import { AppModule } from './modules/app.module';
+
+// Set the timezone to UTC
+process.env.TZ = 'Etc/Universal';
+const docsRoute = '/docs';
+const prefix = '/api';
+
+export function startServer() {
+  const app = new ThanhHoa(prefix);
+
+  new AppModule(app);
+
+  setupSwagger(app, docsRoute, swaggerSpec);
+
+  app.listen({
+    port: appConfig.port,
+  });
+}
+
+void startServer();
+```
+
+Visit `http://localhost:3000/api-docs` to see the Swagger UI.
 
 ## Performance Benchmark
 
@@ -135,7 +213,7 @@ app.get('/error', () => {
 - **Average Latency**: 0.58ms
 - **Memory Usage**: 0.01 MB
 
-The **ThanhHoa framework** shines with sub-2ms response times and minimal memory usage, making it perfect for high-throughput applications.
+ThanhHoa is designed for high-throughput applications, offering sub-1ms response times and minimal memory usage.
 
 _Setup_: Simple GET route (`/test`) over 5,000 iterations, 2 requests per iteration—showcasing its stability and lightweight nature. 🚀✨
 
