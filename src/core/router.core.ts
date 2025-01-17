@@ -1,214 +1,122 @@
 import type {
   HttpMethod,
+  INextFunction,
   IRequestContext,
-  IRoute,
   Middleware,
   RouteHandler,
 } from '@thanhhoajs/thanhhoa';
+import { createRouter } from 'radix3';
 import { Logger } from '@thanhhoajs/logger';
-import { LRUCache } from 'lru-cache';
 
-/**
- * Interface for cached route matches
- */
-interface RouteMatch {
-  handler: (context: IRequestContext) => Promise<Response>;
-}
-
-/**
- * Represents the interface for a router.
- */
 export class Router {
-  private routes: IRoute[] = [];
+  private radixRouter = createRouter();
   private globalMiddlewares: Middleware[] = [];
-  private routeCache: LRUCache<string, RouteMatch>;
   protected logger = Logger.get('THANHHOA');
 
-  constructor(protected prefix: string = '') {
-    this.routeCache = new LRUCache({
-      max: 1000, // Store up to 1000 route matches
-      ttl: 1000 * 60 * 5, // 5 minutes TTL
-      updateAgeOnGet: true,
-    });
-  }
+  constructor(protected prefix: string = '') {}
 
   /**
-   * Adds a route.
-   *
-   * @param {HttpMethod} method - The HTTP method.
-   * @param {string} path - The path.
-   * @param {Middleware[]} middlewares - The array of middlewares.
-   * @param {RouteHandler} handler - The route handler.
-   *
-   * @protected
-   */
-  private addRoute(
-    method: HttpMethod,
-    path: string,
-    middlewares: Middleware[],
-    handler: RouteHandler,
-  ): void {
-    const fullPath = this.prefix + path;
-    const paramNames: string[] = [];
-    const pattern = new RegExp(
-      '^' +
-        fullPath.replace(/:([\w]+)(?=\/|$)/g, (_, name) => {
-          paramNames.push(name);
-          return '([^\\/]+)';
-        }) +
-        '/?$', // Allow optional trailing slash
-    );
-    this.routes.push({ method, pattern, paramNames, middlewares, handler });
-    this.logger.info(`Defined route [${method}] ${fullPath}`);
-  }
-
-  /**
-   * Adds a global middleware.
-   *
-   * @param {Middleware} middleware - The middleware.
-   * @returns {this} The current instance.
+   * Adds a global middleware to the router
+   * @param middleware The middleware function to be executed for all routes
+   * @returns The router instance for chaining
    */
   use(middleware: Middleware): this {
     this.globalMiddlewares.push(middleware);
     return this;
   }
 
+  addRoute(
+    method: HttpMethod,
+    path: string,
+    handler: RouteHandler,
+    middlewares: Middleware[] = [],
+  ) {
+    const fullPath = `${method}:${this.prefix}${path}`;
+    this.radixRouter.insert(fullPath, { handler, middlewares });
+    this.logger.info(`Defined route ${fullPath}`);
+  }
+
   /**
-   * Adds a GET route.
-   *
-   * @param {string} path - The path.
-   * @param {...(Middleware | RouteHandler)[]} handlers - The array of middlewares and route handlers.
-   * @returns {this} The current instance.
+   * Registers a GET route handler
+   * @param path The URL path pattern
+   * @param handlers Array of middleware functions and a final route handler
+   * @returns The router instance for chaining
    */
   get = this.routeMethod('GET');
 
   /**
-   * Adds a POST route.
-   *
-   * @param {string} path - The path.
-   * @param {...(Middleware | RouteHandler)[]} handlers - The array of middlewares and route handlers.
-   * @returns {this} The current instance.
+   * Registers a POST route handler
+   * @param path The URL path pattern
+   * @param handlers Array of middleware functions and a final route handler
+   * @returns The router instance for chaining
    */
   post = this.routeMethod('POST');
 
   /**
-   * Adds a PUT route.
-   *
-   * @param {string} path - The path.
-   * @param {...(Middleware | RouteHandler)[]} handlers - The array of middlewares and route handlers.
-   * @returns {this} The current instance.
+   * Registers a PUT route handler
+   * @param path The URL path pattern
+   * @param handlers Array of middleware functions and a final route handler
+   * @returns The router instance for chaining
    */
   put = this.routeMethod('PUT');
 
   /**
-   * Adds a PATCH route.
-   *
-   * @param {string} path - The path.
-   * @param {...(Middleware | RouteHandler)[]} handlers - The array of middlewares and route handlers.
-   * @returns {this} The current instance.
+   * Registers a PATCH route handler
+   * @param path The URL path pattern
+   * @param handlers Array of middleware functions and a final route handler
+   * @returns The router instance for chaining
    */
   patch = this.routeMethod('PATCH');
 
   /**
-   * Adds a DELETE route.
-   *
-   * @param {string} path - The path.
-   * @param {...(Middleware | RouteHandler)[]} handlers - The array of middlewares and route handlers.
-   * @returns {this} The current instance.
+   * Registers a DELETE route handler
+   * @param path The URL path pattern
+   * @param handlers Array of middleware functions and a final route handler
+   * @returns The router instance for chaining
    */
   delete = this.routeMethod('DELETE');
 
-  /**
-   * Generates a route method with the given HTTP method.
-   *
-   * @param {HttpMethod} method - The HTTP method.
-   * @returns {(path: string, ...handlers: (Middleware | RouteHandler)[]) => this} The route method.
-   * @private
-   */
-  private routeMethod(
-    method: HttpMethod,
-  ): (path: string, ...handlers: (Middleware | RouteHandler)[]) => this {
-    return (path: string, ...handlers: (Middleware | RouteHandler)[]): this => {
+  private routeMethod(method: HttpMethod) {
+    return (path: string, ...handlers: (Middleware | RouteHandler)[]) => {
       const middlewares = handlers.slice(0, -1) as Middleware[];
       const handler = handlers[handlers.length - 1] as RouteHandler;
-      this.addRoute(method, path, middlewares, handler);
+      this.addRoute(method, path, handler, middlewares);
       return this;
     };
   }
 
   /**
-   * Adds a route group.
-   *
-   * @param {string} prefix - The prefix.
-   * @param {(router: IRouter) => void} callback - The callback.
-   * @returns {this} The current instance.
-   */
-  group(prefix: string, callback: (router: Router) => void): this {
-    const subRouter = new Router(this.prefix + prefix);
-    callback(subRouter);
-    this.routes.push(...subRouter.routes);
-    this.globalMiddlewares.push(...subRouter.globalMiddlewares);
-    return this;
-  }
-
-  /**
-   * Retrieves the current prefix for the router.
-   *
-   * @returns {string} The current prefix.
+   * Gets the prefix string used for all routes in this router
+   * @returns The router's prefix string
    */
   getPrefix(): string {
     return this.prefix;
   }
 
-  /**
-   * Handles the request.
-   *
-   * @param {IRequestContext} context - The request context.
-   * @returns {Promise<Response | null>} The promise of the response.
-   */
-  protected async handle(context: IRequestContext): Promise<Response | null> {
-    const cacheKey = `${context.request.method}:${context.request.url}`;
-    const cached = this.routeCache.get(cacheKey);
-    if (cached) return cached.handler(context);
-
+  async handle(context: IRequestContext): Promise<Response> {
     const { request } = context;
     const method = request.method as HttpMethod;
     const url = new URL(request.url);
     const path = url.pathname;
 
-    this.logger.trace(`Handling request [${method}] ${path}`);
-
-    for (const route of this.routes) {
-      if (route.method === method) {
-        const match = path.match(route.pattern);
-        if (match) {
-          const params: Record<string, string> = {};
-          route.paramNames.forEach((name, index) => {
-            params[name] = match[index + 1];
-          });
-          context.params = params;
-
-          const runMiddlewares = async (
-            middlewares: Middleware[],
-            index = 0,
-          ): Promise<Response> => {
-            if (index < middlewares.length) {
-              const middleware = middlewares[index];
-              return middleware(context, () =>
-                runMiddlewares(middlewares, index + 1),
-              );
-            }
-            return route.handler(context);
-          };
-
-          return runMiddlewares([
-            ...this.globalMiddlewares,
-            ...route.middlewares,
-          ]);
-        }
-      }
+    const route = this.radixRouter.lookup(`${method}:${path}`);
+    if (route) {
+      context.params = route.params || {};
+      const middlewares = [...this.globalMiddlewares, ...route.middlewares];
+      return compose(middlewares)(context, () => route.handler(context));
     }
 
-    return null;
+    return new Response('Not Found', { status: 404 });
   }
 }
+
+const compose = (middlewares: Middleware[]) => {
+  return (context: IRequestContext, next: INextFunction) => {
+    const dispatch = (index: number): Promise<Response> => {
+      if (index >= middlewares.length) return next();
+      const middleware = middlewares[index];
+      return middleware(context, () => dispatch(index + 1));
+    };
+    return dispatch(0);
+  };
+};

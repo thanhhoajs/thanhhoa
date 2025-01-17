@@ -19,6 +19,8 @@ export class AsyncPool {
     peakSize: 0,
   };
   private logger = Logger.get('AsyncPool');
+  private readonly errorWindow = 60000; // 1 minute
+  private errors: number[] = [];
 
   constructor(private maxSize: number) {}
 
@@ -30,9 +32,24 @@ export class AsyncPool {
     return { ...this.metrics };
   }
 
+  get errorRate(): number {
+    const now = Date.now();
+    this.errors = this.errors.filter((time) => now - time < this.errorWindow);
+    return this.errors.length / this.maxSize;
+  }
+
   async execute<T>(fn: () => Promise<T>): Promise<T> {
     while (this.pool.size >= this.maxSize) {
-      await Promise.race(Array.from(this.pool));
+      const completed = await Promise.race([
+        Promise.race(Array.from(this.pool)),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Pool timeout')), 5000),
+        ),
+      ]).catch(() => null);
+
+      if (completed) {
+        break;
+      }
     }
 
     const start = performance.now();
@@ -50,20 +67,23 @@ export class AsyncPool {
 
     try {
       const result = await promise;
-      this.metrics.totalExecuted++;
-
-      const executionTime = performance.now() - start;
-      this.metrics.avgExecutionTime =
-        (this.metrics.avgExecutionTime * (this.metrics.totalExecuted - 1) +
-          executionTime) /
-        this.metrics.totalExecuted;
-
+      this.updateMetrics(start);
       return result;
     } catch (error) {
+      this.errors.push(Date.now());
       this.metrics.totalErrors++;
       this.logger.error('Task execution failed:', error);
       throw error;
     }
+  }
+
+  private updateMetrics(start: number) {
+    this.metrics.totalExecuted++;
+    const executionTime = performance.now() - start;
+    this.metrics.avgExecutionTime =
+      (this.metrics.avgExecutionTime * (this.metrics.totalExecuted - 1) +
+        executionTime) /
+      this.metrics.totalExecuted;
   }
 
   async cleanup(): Promise<void> {
