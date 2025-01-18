@@ -14,6 +14,10 @@ const cache = new LRUCache<string, Response>({
 
 export const cacheMiddleware = (): Middleware => {
   return async (context: IRequestContext, next: INextFunction) => {
+    if (context.request.method !== 'GET') {
+      return next();
+    }
+
     const cacheKey = context.request.url;
     const cachedResponse = cache.get(cacheKey);
     if (cachedResponse) return cachedResponse.clone();
