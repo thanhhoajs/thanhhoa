@@ -4,28 +4,23 @@ import type {
   Middleware,
 } from '@thanhhoajs/thanhhoa';
 import type { ZlibCompressionOptions } from 'bun';
-import { gzipSync } from 'zlib';
 
 /**
- * Compression middleware that applies Gzip compression to HTTP responses.
+ * Compression middleware to gzip compress HTTP response bodies.
  *
- * @param {ZlibCompressionOptions} options - Configuration options for Gzip compression.
- * @returns {Middleware} A middleware function that compresses responses if applicable.
+ * @param {ZlibCompressionOptions} options - Options for zlib compression.
+ * @returns {Middleware} Middleware function for compressing responses.
  *
  * @description
- * This middleware checks the client's `Accept-Encoding` header for Gzip support.
- * If supported and the response meets the criteria for compression (e.g., JSON, plain text, or HTML),
- * it compresses the response body using Gzip and sets the appropriate headers.
- *
- * - Skips compression if the `Content-Encoding` is already set to `gzip`.
- * - Handles JSON responses by parsing, stringifying, and compressing them.
- * - Handles streaming responses by reading chunks, combining them, and compressing the combined data.
- * - For other responses, compresses the response body directly if necessary.
- *
- * If the response cannot be compressed or an error occurs during compression,
- * the original response is returned without modification.
+ * This middleware checks if the client supports gzip compression via the
+ * `Accept-Encoding` header. If supported and the response is compressible
+ * (e.g., `application/json`, `text/plain`, `text/html`), it compresses the
+ * response using gzip. The `Content-Encoding` header is set to 'gzip', and
+ * the `Content-Length` is updated to reflect the size of the compressed data.
+ * If the response is already compressed or not compressible, it is returned
+ * unchanged. In case of an error during compression, the original response
+ * is returned.
  */
-
 export const compression = (options: ZlibCompressionOptions): Middleware => {
   return async (
     context: IRequestContext,
@@ -53,79 +48,24 @@ export const compression = (options: ZlibCompressionOptions): Middleware => {
       return response;
     }
 
-    // Handle JSON specifically
-    if (contentType.includes('application/json')) {
-      const clone = response.clone();
-      try {
-        const data = await clone.json();
-        const jsonString = JSON.stringify(data);
-        const textEncoder = new TextEncoder();
-        const compressed = gzipSync(textEncoder.encode(jsonString));
-
-        const headers = new Headers(response.headers);
-        headers.set('Content-Encoding', 'gzip');
-        headers.set('Content-Length', compressed.length.toString());
-
-        return new Response(compressed, {
-          status: response.status,
-          headers,
-        });
-      } catch (error) {
-        // If JSON parsing fails, return original response
-        return response;
-      }
-    }
-
-    // Handle streaming response
-    if (response.body instanceof ReadableStream) {
-      const chunks: Uint8Array[] = [];
-      const reader = response.body.getReader();
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-        }
-
-        // Combine chunks into single Uint8Array
-        const totalLength = chunks.reduce(
-          (acc, chunk) => acc + chunk.length,
-          0,
-        );
-        const combined = new Uint8Array(totalLength);
-        let offset = 0;
-        for (const chunk of chunks) {
-          combined.set(chunk, offset);
-          offset += chunk.length;
-        }
-
-        const compressed = gzipSync(combined, options);
-
-        const headers = new Headers(response.headers);
-        headers.set('Content-Encoding', 'gzip');
-        headers.set('Content-Length', compressed.length.toString());
-
-        return new Response(compressed, {
-          status: response.status,
-          headers,
-        });
-      } catch (error) {
-        return response;
-      }
-    }
-
-    // Handle regular responses
     try {
-      const body = await response.arrayBuffer();
-      const compressed = gzipSync(new Uint8Array(body), options);
+      const clone = response.clone();
+      const content = await clone.text();
+
+      const stream = new Blob([content]).stream();
+      const compressedStream = stream.pipeThrough(
+        new CompressionStream('gzip'),
+      );
+      const compressedData = await new Response(compressedStream).arrayBuffer();
 
       const headers = new Headers(response.headers);
       headers.set('Content-Encoding', 'gzip');
-      headers.set('Content-Length', compressed.length.toString());
+      headers.set('Content-Length', compressedData.byteLength.toString());
+      headers.set('Vary', 'Accept-Encoding');
 
-      return new Response(compressed, {
+      return new Response(compressedData, {
         status: response.status,
+        statusText: response.statusText,
         headers,
       });
     } catch (error) {
