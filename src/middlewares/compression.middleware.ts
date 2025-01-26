@@ -33,37 +33,24 @@ export const compression = (options: ZlibCompressionOptions): Middleware => {
       return response;
     }
 
-    const contentEncoding = response.headers.get('content-encoding');
-    if (contentEncoding && contentEncoding.includes('gzip')) {
-      return response;
-    }
-
     const contentType = response.headers.get('content-type') || '';
-    const shouldCompress =
-      contentType.includes('application/json') ||
-      contentType.includes('text/plain') ||
-      contentType.includes('text/html');
-
-    if (!shouldCompress) {
+    if (
+      !contentType.includes('text') &&
+      !contentType.includes('application/json')
+    ) {
       return response;
     }
 
     try {
-      const clone = response.clone();
-      const content = await clone.text();
-
-      const stream = new Blob([content]).stream();
-      const compressedStream = stream.pipeThrough(
-        new CompressionStream('gzip'),
-      );
-      const compressedData = await new Response(compressedStream).arrayBuffer();
+      const content = await response.text();
+      const compressed = Bun.gzipSync(new TextEncoder().encode(content));
 
       const headers = new Headers(response.headers);
       headers.set('Content-Encoding', 'gzip');
-      headers.set('Content-Length', compressedData.byteLength.toString());
+      headers.set('Content-Length', compressed.byteLength.toString());
       headers.set('Vary', 'Accept-Encoding');
 
-      return new Response(compressedData, {
+      return new Response(compressed, {
         status: response.status,
         statusText: response.statusText,
         headers,

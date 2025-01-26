@@ -2,10 +2,26 @@ import {
   type IRequestContext,
   type INextFunction,
   type Middleware,
-  ThanhHoaResponse,
-  HttpException,
-  type ICORSOptions,
 } from '@thanhhoajs/thanhhoa';
+
+/**
+ * CORS middleware options.
+ */
+export interface ICORSOptions {
+  // Basic CORS Options
+  origin?: string | string[] | boolean;
+  methods?: string[];
+  allowedHeaders?: string[];
+  exposedHeaders?: string[];
+  credentials?: boolean;
+  maxAge?: number;
+  preflightContinue?: boolean;
+  optionsSuccessStatus?: number;
+
+  // Network Access Control
+  privateNetwork?: boolean;
+  allowPrivateNetwork?: boolean;
+}
 
 const defaultCORSOptions: ICORSOptions = {
   origin: '*',
@@ -57,106 +73,53 @@ const preflightCache = new Map<string, Response>();
  * }));
  */
 export const corsMiddleware = (
-  options: ICORSOptions = defaultCORSOptions,
+  options: Partial<ICORSOptions> = {},
 ): Middleware => {
-  const corsOptions = { ...defaultCORSOptions, ...options };
+  const corsOptions = {
+    ...defaultCORSOptions,
+    ...options,
+  } as Required<ICORSOptions>;
 
   return async (context: IRequestContext, next: INextFunction) => {
-    let response: Response;
+    const response =
+      context.request.method === 'OPTIONS'
+        ? new Response(null, { status: corsOptions.optionsSuccessStatus })
+        : await next();
 
-    if (context.request.method === 'OPTIONS') {
-      const cacheKey = context.request.url;
-      if (preflightCache.has(cacheKey)) {
-        return preflightCache.get(cacheKey)!;
-      }
-      response = new Response(null, {
-        status: corsOptions.optionsSuccessStatus,
-      });
-      preflightCache.set(cacheKey, response);
-      return response;
-    }
-
-    try {
-      response = await next();
-    } catch (error) {
-      if (error instanceof HttpException) {
-        response = new ThanhHoaResponse(error).toResponse();
-      } else {
-        throw error;
-      }
-    }
+    const headers = new Headers(response.headers);
 
     // Handle origin
-    let allowOrigin: string | null = '*';
     const requestOrigin = context.request.headers.get('Origin');
+    let allowOrigin = '*';
 
     if (typeof corsOptions.origin === 'boolean') {
-      allowOrigin = corsOptions.origin ? requestOrigin : null;
+      allowOrigin = corsOptions.origin ? requestOrigin || '*' : '*';
     } else if (Array.isArray(corsOptions.origin)) {
       allowOrigin = corsOptions.origin.includes(requestOrigin || '')
-        ? requestOrigin
-        : null;
+        ? requestOrigin || '*'
+        : '*';
     } else if (typeof corsOptions.origin === 'string') {
       allowOrigin = corsOptions.origin;
-    } else if (typeof corsOptions.origin === 'function') {
-      allowOrigin = (
-        corsOptions.origin as (origin: string | null) => string | null
-      )(requestOrigin);
     }
 
-    // Set basic CORS headers
-    if (allowOrigin) {
-      response.headers.set('Access-Control-Allow-Origin', allowOrigin);
-    }
-
-    // Set Vary header if origin is not *
-    if (allowOrigin !== '*') {
-      response.headers.append('Vary', 'Origin');
-    }
-
-    // Methods
-    response.headers.set(
-      'Access-Control-Allow-Methods',
-      corsOptions.methods?.join(', ') || defaultCORSOptions.methods!.join(', '),
-    );
-
-    // Allowed Headers
-    response.headers.set(
+    headers.set('Access-Control-Allow-Origin', allowOrigin);
+    headers.set('Access-Control-Allow-Methods', corsOptions.methods.join(', '));
+    headers.set(
       'Access-Control-Allow-Headers',
-      corsOptions.allowedHeaders?.join(', ') ||
-        defaultCORSOptions.allowedHeaders!.join(', '),
+      corsOptions.allowedHeaders.join(', '),
     );
 
-    // Exposed Headers
-    if (corsOptions.exposedHeaders?.length) {
-      response.headers.set(
-        'Access-Control-Expose-Headers',
-        corsOptions.exposedHeaders.join(', '),
-      );
-    }
-
-    // Credentials
     if (corsOptions.credentials) {
-      response.headers.set('Access-Control-Allow-Credentials', 'true');
+      headers.set('Access-Control-Allow-Credentials', 'true');
     }
 
-    // Max Age
     if (corsOptions.maxAge) {
-      response.headers.set(
-        'Access-Control-Max-Age',
-        corsOptions.maxAge.toString(),
-      );
+      headers.set('Access-Control-Max-Age', corsOptions.maxAge.toString());
     }
 
-    // Private Network Access
-    if (corsOptions.privateNetwork) {
-      response.headers.set('Access-Control-Request-Private-Network', 'true');
-    }
-
-    if (corsOptions.allowPrivateNetwork) {
-      response.headers.set('Access-Control-Allow-Private-Network', 'true');
-    }
-
-    return response;
+    return new Response(response.body, {
+      status: response.status,
+      headers,
+    });
   };
 };

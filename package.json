@@ -1,6 +1,6 @@
 {
   "name": "@thanhhoajs/thanhhoa",
-  "version": "0.0.4-beta.8",
+  "version": "0.0.4-beta.9",
   "description": "ThanhHoa is a lightweight, high-performance web framework for Bun, designed to make server-side development simple and enjoyable.",
   "author": "Nguyen Nhu Khanh <kwalker.nnk@gmail.com>",
   "license": "MIT",
@@ -38,7 +38,7 @@
   ],
   "scripts": {
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"benchmark/**/*.ts\"",
-    "test": "bun test thanh-hoa.test.ts",
+    "test": "bun test",
     "benchmark": "bun run benchmark/index.ts",
     "build": "tsc",
     "release": "bun run format && bun run test && bun run build && bun publish"
@@ -57,6 +57,7 @@
     "@thanhhoajs/logger": "latest",
     "lru-cache": "^11.0.2",
     "radix3": "^1.1.2",
-    "redis": "^4.7.0"
+    "redis": "^4.7.0",
+    "reflect-metadata": "^0.2.2"
   }
 }

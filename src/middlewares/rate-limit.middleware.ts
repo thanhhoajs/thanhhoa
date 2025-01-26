@@ -3,12 +3,23 @@ import {
   type Middleware,
   type IRequestContext,
   type INextFunction,
-  type IRateLimiterOptions,
 } from '@thanhhoajs/thanhhoa';
 import { RedisClientType, createClient } from 'redis';
 import { Logger } from '@thanhhoajs/logger';
 
 const logger = Logger.get('THANHHOA');
+
+export interface IRateLimiterOptions {
+  windowMs: number;
+  maxRequests: number;
+  message?: string;
+  skipFailedRequests?: boolean;
+  skipSuccessfulRequests?: boolean;
+  redis?: {
+    enabled: boolean;
+    url?: string; // Redis connection URL
+  };
+}
 
 declare global {
   var redisClient: RedisClientType | null;

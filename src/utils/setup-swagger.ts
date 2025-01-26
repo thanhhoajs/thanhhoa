@@ -1,29 +1,22 @@
 import { ThanhHoa, type IRequestContext } from '@thanhhoajs/thanhhoa';
+import { Controller, Get } from '../decorators/decorators';
 
-/**
- * Sets up Swagger UI and JSON spec routes for the given ThanhHoa app.
- *
- * @param {ThanhHoa} app - The ThanhHoa app to set up the routes for.
- * @param {string} docsRoute - The route to use for serving Swagger UI and JSON spec.
- * @param {object} swaggerSpec - The Swagger spec JSON object to serve at the above route.
- */
-export const setupSwagger = (
-  app: ThanhHoa,
-  docsRoute: string,
-  swaggerSpec: object,
-) => {
-  // Get the full path including prefix for the client-side URL
-  const fullPath = `${app.getPrefix()}${docsRoute}`;
+@Controller()
+class SwaggerController {
+  constructor(
+    private swaggerSpec: object,
+    private basePath: string,
+  ) {}
 
-  // Route for serving Swagger JSON spec
-  app.get(`${docsRoute}/swagger.json`, async (context: IRequestContext) => {
-    return new Response(JSON.stringify(swaggerSpec), {
+  @Get('/swagger.json')
+  async getSwaggerJson(context: IRequestContext): Promise<Response> {
+    return new Response(JSON.stringify(this.swaggerSpec), {
       headers: { 'Content-Type': 'application/json' },
     });
-  });
+  }
 
-  // Route for serving Swagger UI
-  app.get(docsRoute, async (context: IRequestContext) => {
+  @Get('/')
+  async getSwaggerUI(context: IRequestContext): Promise<Response> {
     const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -871,7 +864,7 @@ export const setupSwagger = (
 
             // Enhanced Swagger UI Configuration
             window.ui = SwaggerUIBundle({
-                url: '${fullPath}/swagger.json',
+                url: '${this.basePath}/swagger.json',
                 dom_id: '#swagger-ui',
                 deepLinking: true,
                 displayRequestDuration: true,
@@ -958,5 +951,23 @@ export const setupSwagger = (
     return new Response(html, {
       headers: { 'Content-Type': 'text/html' },
     });
-  });
+  }
+}
+
+export const setupSwagger = (
+  app: ThanhHoa,
+  docsRoute: string,
+  swaggerSpec: object,
+) => {
+  // Create controller instance with the swagger spec
+  @Controller(docsRoute)
+  class ConfiguredSwaggerController extends SwaggerController {
+    constructor() {
+      const fullPath = `${app.getPrefix()}${docsRoute}`;
+      super(swaggerSpec, fullPath);
+    }
+  }
+
+  // Register the controller
+  app.registerController(ConfiguredSwaggerController);
 };

@@ -4,7 +4,6 @@ import type {
   IRequestContext,
   Middleware,
 } from '@thanhhoajs/thanhhoa';
-import { gzipSync } from 'bun';
 import * as crypto from 'crypto';
 
 const cache = new LRUCache<string, Response>({
@@ -19,18 +18,30 @@ export const cacheMiddleware = (): Middleware => {
     }
 
     const cacheKey = context.request.url;
+    const ifNoneMatch = context.request.headers.get('If-None-Match');
     const cachedResponse = cache.get(cacheKey);
-    if (cachedResponse) return cachedResponse.clone();
 
+    // Return cached response if ETag matches
+    if (cachedResponse) {
+      const cachedEtag = cachedResponse.headers.get('ETag');
+
+      // If we have an If-None-Match header and it matches our ETag
+      if (ifNoneMatch && cachedEtag === ifNoneMatch) {
+        return new Response(null, {
+          status: 304,
+          headers: new Headers({
+            ETag: cachedEtag,
+            'Cache-Control': 'public, max-age=3600',
+          }),
+        });
+      }
+
+      // Return cached response if it exists
+      return cachedResponse.clone();
+    }
+
+    // Process new response
     const response = await next();
-    const contentType = response.headers.get('Content-Type') || '';
-
-    const shouldCompress =
-      contentType.includes('text') ||
-      contentType.includes('javascript') ||
-      contentType.includes('json') ||
-      contentType.includes('xml');
-
     const body = await response.arrayBuffer();
 
     // Generate ETag
@@ -39,37 +50,19 @@ export const cacheMiddleware = (): Middleware => {
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('')}"`;
 
-    // Check If-None-Match header
-    const ifNoneMatch = context.request.headers.get('If-None-Match');
-    if (ifNoneMatch === etag) {
-      return new Response(null, { status: 304 });
-    }
-
-    // Compress response if supported
-    const acceptEncoding = context.request.headers.get('Accept-Encoding') || '';
-    const isGzipSupported = acceptEncoding.includes('gzip');
-
     const headers = new Headers(response.headers);
     headers.set('ETag', etag);
     headers.set('Cache-Control', 'public, max-age=3600');
 
-    if (isGzipSupported && shouldCompress && body.byteLength > 1024) {
-      const compressed = gzipSync(new Uint8Array(body));
-      headers.set('Content-Encoding', 'gzip');
-      headers.set('Content-Length', compressed.byteLength.toString());
-      const compressedResponse = new Response(compressed, {
-        status: response.status,
-        headers,
-      });
-      cache.set(cacheKey, compressedResponse.clone());
-      return compressedResponse;
-    }
-
+    // Create final response
     const finalResponse = new Response(body, {
       status: response.status,
       headers,
     });
+
+    // Cache the response
     cache.set(cacheKey, finalResponse.clone());
+
     return finalResponse;
   };
 };

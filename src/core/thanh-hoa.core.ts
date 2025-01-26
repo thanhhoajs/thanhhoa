@@ -2,7 +2,9 @@ import { LRUCache } from 'lru-cache';
 import type { Server } from 'bun';
 import {
   AsyncPool,
+  container,
   HttpException,
+  MODULE_METADATA_KEY,
   Router,
   ThanhHoaResponse,
   type ICacheEntry,
@@ -190,12 +192,71 @@ export class ThanhHoa extends Router {
     });
   }
 
+  registerModule(module: any): ThanhHoa {
+    const metadata = Reflect.getMetadata(MODULE_METADATA_KEY, module);
+    if (!metadata) {
+      throw new Error(`No module metadata found for ${module.name}`);
+    }
+
+    // Register imported modules first
+    if (metadata.imports) {
+      for (const importedModule of metadata.imports) {
+        this.registerModule(importedModule);
+      }
+    }
+
+    // Register repositories first
+    if (metadata.repositories) {
+      for (const repository of metadata.repositories) {
+        if (!container.has(repository.name)) {
+          const instance = new repository();
+          container.register(repository.name, instance);
+        }
+      }
+    }
+
+    // Register providers with repository injection
+    if (metadata.providers) {
+      for (const provider of metadata.providers) {
+        if (!container.has(provider.name)) {
+          const instance = new provider();
+          container.register(provider.name, instance);
+        }
+      }
+    }
+
+    // Register exports - make providers available to other modules
+    if (metadata.exports) {
+      for (const exportedService of metadata.exports) {
+        // If provider is not already registered, register it
+        if (!container.has(exportedService.name)) {
+          const instance = new exportedService();
+          container.register(exportedService.name, instance);
+        }
+      }
+    }
+
+    // Register controllers
+    if (metadata.controllers) {
+      for (const controller of metadata.controllers) {
+        this.registerController(controller);
+      }
+    }
+
+    return this;
+  }
+
   /**
    * Starts the ThanhHoa server and listens on the given port.
    * @param options Options for the server.
    * @returns The server instance.
    */
-  listen(options: IThanhHoaServeOptions): Server {
+  listen(options: IThanhHoaServeOptions, modules: any[] = []): Server {
+    // Register all modules before starting the server
+    for (const module of modules) {
+      this.registerModule(module);
+    }
+
     // Merge options
     this.options = {
       ...this.options,
