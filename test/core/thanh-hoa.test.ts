@@ -51,7 +51,7 @@ describe('ThanhHoa', () => {
     const text = (await response.text()).trim(); // Trim whitespace and line endings
 
     expect(response.status).toBe(200);
-    expect(text).toBe('test file content');
+    expect(text).toBe('Hello ThanhHoa!');
   });
 
   it('should handle module exports and imports', async () => {

@@ -38,6 +38,14 @@ export class Container {
     }
     return provider as T;
   }
+
+  /**
+   * Get all provider tokens in the container
+   * @returns {string[]} Provider tokens
+   */
+  getAllKeys(): string[] {
+    return Array.from(this.providers.keys());
+  }
 }
 
 export const container = new Container();

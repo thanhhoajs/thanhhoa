@@ -1,4 +1,4 @@
-import { IRequestContext } from '@thanhhoajs/thanhhoa';
+import { IRequestContext, container } from '@thanhhoajs/thanhhoa';
 
 export const CONTROLLER_METADATA_KEY = 'controller';
 export const ROUTE_METADATA_KEY = 'route';
@@ -40,9 +40,19 @@ type NewMethodDecorator = (
 export type Constructor<T = any> = new (...args: any[]) => T;
 
 /**
- * Service class type definition
+ * Provider configuration interface
  */
-export type ServiceType = Constructor & { name: string };
+export interface ProviderConfig {
+  provide: string;
+  useClass?: Constructor;
+  useFactory?: () => any;
+  useValue?: any;
+}
+
+/**
+ * Service type can be either a constructor or provider config
+ */
+export type ServiceType = Constructor | ProviderConfig;
 
 /**
  * Controller class type definition
@@ -215,6 +225,11 @@ export function Inject(token: string) {
 export function Module(metadata: ModuleMetadata) {
   return function (target: any) {
     Reflect.defineMetadata(MODULE_METADATA_KEY, metadata, target);
+
+    // Register the module class in the container
+    if (!container.has(target.name)) {
+      container.register(target.name, target);
+    }
   };
 }
 
