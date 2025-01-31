@@ -261,7 +261,7 @@ Visit `http://localhost:3000/api/docs` to see the Swagger UI.
 
 **Handling 10,000 concurrent requests:**
 
-- **Average Latency**: 0.58ms
+- **Average Latency**: 0.57ms
 - **Memory Usage**: 0.01 MB
 
 ThanhHoa is designed for high-throughput applications, offering sub-1ms response times and minimal memory usage.
