@@ -236,8 +236,30 @@ export function Module(metadata: ModuleMetadata) {
 /**
  * Provider decorator for marking a class as a service provider
  */
-export function Provider() {
+export function Provider(
+  options: { singleton?: boolean; token?: string } = {},
+) {
   return function (target: any) {
-    Reflect.defineMetadata(SERVICE_METADATA_KEY, true, target);
+    const token = options.token || target.name;
+    Reflect.defineMetadata(
+      SERVICE_METADATA_KEY,
+      {
+        singleton: options.singleton,
+        token,
+      },
+      target,
+    );
+
+    if (!container.has(token)) {
+      container.register(token, target, { singleton: options.singleton });
+    }
+  };
+}
+
+// Factory provider support
+export function Factory(factory: () => any) {
+  return function (target: any) {
+    const token = target.name;
+    container.register(token, factory());
   };
 }

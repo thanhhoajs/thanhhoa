@@ -7,6 +7,7 @@ import {
   MODULE_METADATA_KEY,
   Router,
   ThanhHoaResponse,
+  ModuleMetadata,
   type ICacheEntry,
   type IRequestContext,
   type IThanhHoaServeOptions,
@@ -27,6 +28,7 @@ export class ThanhHoa extends Router {
   private staticFileCache: LRUCache<string, Response>;
   private requestPool = new AsyncPool(ThanhHoa.REQUEST_POOL_SIZE);
   protected options: IThanhHoaServeOptions;
+  private moduleRegistry = new Map<string, any>();
 
   constructor(
     protected prefix: string = '',
@@ -193,57 +195,64 @@ export class ThanhHoa extends Router {
   }
 
   registerModule(module: any): ThanhHoa {
+    // Prevent duplicate module registration
+    if (this.moduleRegistry.has(module.name)) {
+      return this;
+    }
+    this.moduleRegistry.set(module.name, module);
+
     const metadata = Reflect.getMetadata(MODULE_METADATA_KEY, module);
     if (!metadata) {
       throw new Error(`No module metadata found for ${module.name}`);
     }
 
-    // Register imported modules first
+    // Lazy load dependencies only when needed
+    this.loadModuleDependencies(metadata);
+    this.registerModuleProviders(metadata);
+    this.registerModuleControllers(metadata);
+
+    return this;
+  }
+
+  private loadModuleDependencies(metadata: ModuleMetadata) {
     if (metadata.imports) {
       for (const importedModule of metadata.imports) {
         this.registerModule(importedModule);
       }
     }
+  }
 
-    // Register repositories first
-    if (metadata.repositories) {
-      for (const repository of metadata.repositories) {
-        if (!container.has(repository.name)) {
-          const instance = new repository();
-          container.register(repository.name, instance);
-        }
-      }
-    }
-
-    // Register providers with repository injection
+  private registerModuleProviders(metadata: ModuleMetadata) {
     if (metadata.providers) {
       for (const provider of metadata.providers) {
-        if (!container.has(provider.name)) {
-          const instance = new provider();
-          container.register(provider.name, instance);
+        if (typeof provider === 'function') {
+          // Handle class provider
+          if (!container.has(provider.name)) {
+            container.register(provider.name, provider);
+          }
+        } else {
+          // Handle provider config
+          const token = provider.provide;
+          if (!container.has(token)) {
+            if (provider.useClass) {
+              container.register(token, provider.useClass);
+            } else if (provider.useFactory) {
+              container.register(token, provider.useFactory());
+            } else if ('useValue' in provider) {
+              container.register(token, provider.useValue);
+            }
+          }
         }
       }
     }
+  }
 
-    // Register exports - make providers available to other modules
-    if (metadata.exports) {
-      for (const exportedService of metadata.exports) {
-        // If provider is not already registered, register it
-        if (!container.has(exportedService.name)) {
-          const instance = new exportedService();
-          container.register(exportedService.name, instance);
-        }
-      }
-    }
-
-    // Register controllers
+  private registerModuleControllers(metadata: ModuleMetadata) {
     if (metadata.controllers) {
       for (const controller of metadata.controllers) {
         this.registerController(controller);
       }
     }
-
-    return this;
   }
 
   /**

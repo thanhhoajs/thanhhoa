@@ -45,10 +45,10 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "prettier": "^3.3.3"
+    "prettier": "^3.4.2"
   },
   "peerDependencies": {
-    "typescript": "^5.5.2"
+    "typescript": "^5.7.3"
   },
   "engines": {
     "bun": ">=1.0.0"
@@ -57,7 +57,6 @@
     "@thanhhoajs/logger": "latest",
     "lru-cache": "^11.0.2",
     "radix3": "^1.1.2",
-    "redis": "^4.7.0",
     "reflect-metadata": "^0.2.2"
   }
 }
