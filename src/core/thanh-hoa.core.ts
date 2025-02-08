@@ -2,9 +2,12 @@ import { LRUCache } from 'lru-cache';
 import type { Server } from 'bun';
 import {
   AsyncPool,
+  container,
   HttpException,
+  MODULE_METADATA_KEY,
   Router,
   ThanhHoaResponse,
+  ModuleMetadata,
   type ICacheEntry,
   type IRequestContext,
   type IThanhHoaServeOptions,
@@ -25,6 +28,7 @@ export class ThanhHoa extends Router {
   private staticFileCache: LRUCache<string, Response>;
   private requestPool = new AsyncPool(ThanhHoa.REQUEST_POOL_SIZE);
   protected options: IThanhHoaServeOptions;
+  private moduleRegistry = new Map<string, any>();
 
   constructor(
     protected prefix: string = '',
@@ -190,12 +194,78 @@ export class ThanhHoa extends Router {
     });
   }
 
+  registerModule(module: any): ThanhHoa {
+    // Prevent duplicate module registration
+    if (this.moduleRegistry.has(module.name)) {
+      return this;
+    }
+    this.moduleRegistry.set(module.name, module);
+
+    const metadata = Reflect.getMetadata(MODULE_METADATA_KEY, module);
+    if (!metadata) {
+      throw new Error(`No module metadata found for ${module.name}`);
+    }
+
+    // Lazy load dependencies only when needed
+    this.loadModuleDependencies(metadata);
+    this.registerModuleProviders(metadata);
+    this.registerModuleControllers(metadata);
+
+    return this;
+  }
+
+  private loadModuleDependencies(metadata: ModuleMetadata) {
+    if (metadata.imports) {
+      for (const importedModule of metadata.imports) {
+        this.registerModule(importedModule);
+      }
+    }
+  }
+
+  private registerModuleProviders(metadata: ModuleMetadata) {
+    if (metadata.providers) {
+      for (const provider of metadata.providers) {
+        if (typeof provider === 'function') {
+          // Handle class provider
+          if (!container.has(provider.name)) {
+            container.register(provider.name, provider);
+          }
+        } else {
+          // Handle provider config
+          const token = provider.provide;
+          if (!container.has(token)) {
+            if (provider.useClass) {
+              container.register(token, provider.useClass);
+            } else if (provider.useFactory) {
+              container.register(token, provider.useFactory());
+            } else if ('useValue' in provider) {
+              container.register(token, provider.useValue);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  private registerModuleControllers(metadata: ModuleMetadata) {
+    if (metadata.controllers) {
+      for (const controller of metadata.controllers) {
+        this.registerController(controller);
+      }
+    }
+  }
+
   /**
    * Starts the ThanhHoa server and listens on the given port.
    * @param options Options for the server.
    * @returns The server instance.
    */
-  listen(options: IThanhHoaServeOptions): Server {
+  listen(options: IThanhHoaServeOptions, modules: any[] = []): Server {
+    // Register all modules before starting the server
+    for (const module of modules) {
+      this.registerModule(module);
+    }
+
     // Merge options
     this.options = {
       ...this.options,

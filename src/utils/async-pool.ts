@@ -1,4 +1,3 @@
-import { LRUCache } from 'lru-cache';
 import { Logger } from '@thanhhoajs/logger';
 
 interface PoolMetrics {
