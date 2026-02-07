@@ -1,7 +1,7 @@
 {
   "name": "@thanhhoajs/thanhhoa",
-  "version": "0.0.4-beta.9",
-  "description": "ThanhHoa is a lightweight, high-performance web framework for Bun, designed to make server-side development simple and enjoyable.",
+  "version": "0.0.5",
+  "description": "Ultra-high performance web framework for Bun. Simple, fast, lightweight.",
   "author": "Nguyen Nhu Khanh <kwalker.nnk@gmail.com>",
   "license": "MIT",
   "private": false,
@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "prettier": "^3.4.2"
+    "prettier": "^3.8.1"
   },
   "peerDependencies": {
     "typescript": "^5.7.3"
@@ -55,8 +55,9 @@
   },
   "dependencies": {
     "@thanhhoajs/logger": "latest",
-    "lru-cache": "^11.0.2",
-    "radix3": "^1.1.2",
-    "reflect-metadata": "^0.2.2"
+    "ajv": "^8.17.1",
+    "fast-decode-uri-component": "^1.0.1",
+    "lru-cache": "^11.2.5",
+    "radix3": "^1.1.2"
   }
 }

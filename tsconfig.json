@@ -1,13 +1,15 @@
 // tsconfig.json
 {
   "compilerOptions": {
-    "lib": ["ESNext", "DOM"],
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",
     "jsx": "react-jsx",
     "allowJs": true,
-
     // Change these settings
     "moduleResolution": "node",
     "declaration": true, // Generate .d.ts files
@@ -15,19 +17,23 @@
     "sourceMap": true,
     "outDir": "./dist", // Output to dist folder
     "noEmit": false, // Allow emission of files
-
     // Keep best practices
     "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "noFallthroughCasesInSwitch": true,
-
     "paths": {
-      "@thanhhoajs/thanhhoa": ["./src"]
+      "@thanhhoajs/thanhhoa": [
+        "./src"
+      ]
     },
-
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
