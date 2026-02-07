@@ -1,33 +1,26 @@
-import { describe, expect, it } from 'bun:test';
-import {
-  Controller,
-  Get,
-  Module,
-  Provider,
-  Inject,
-  ThanhHoa,
-} from '@thanhhoajs/thanhhoa';
+import { describe, expect, it, afterEach } from 'bun:test';
+import { ThanhHoa } from '@thanhhoajs/thanhhoa';
 
 describe('ThanhHoa', () => {
-  it('should register and handle modules', async () => {
+  let server: ReturnType<typeof Bun.serve> | null = null;
+
+  afterEach(() => {
+    if (server) {
+      server.stop();
+      server = null;
+    }
+  });
+
+  it('should handle simple GET routes', async () => {
     const app = new ThanhHoa();
 
-    @Controller('/api')
-    class TestController {
-      @Get('/hello')
-      async hello() {
-        return new Response('Hello World');
-      }
-    }
+    app.get('/api/hello', async () => {
+      return new Response('Hello World');
+    });
 
-    @Module({
-      controllers: [TestController],
-    })
-    class TestModule {}
+    server = app.listen({ port: 3100 });
 
-    app.listen({ port: 3000 }, [TestModule]);
-
-    const response = await fetch('http://localhost:3000/api/hello');
+    const response = await fetch('http://localhost:3100/api/hello');
     const text = await response.text();
 
     expect(response.status).toBe(200);
@@ -35,10 +28,7 @@ describe('ThanhHoa', () => {
   });
 
   it('should handle static files', async () => {
-    const app = new ThanhHoa();
-
-    app.listen({
-      port: 3001,
+    const app = new ThanhHoa('', {
       staticDirectories: [
         {
           path: '/static',
@@ -47,53 +37,71 @@ describe('ThanhHoa', () => {
       ],
     });
 
-    const response = await fetch('http://localhost:3001/static/test.txt');
-    const text = (await response.text()).trim(); // Trim whitespace and line endings
+    server = app.listen({ port: 3101 });
+
+    const response = await fetch('http://localhost:3101/static/test.txt');
+    const text = (await response.text()).trim();
 
     expect(response.status).toBe(200);
     expect(text).toBe('Hello ThanhHoa!');
   });
 
-  it('should handle module exports and imports', async () => {
+  it('should handle POST requests with body', async () => {
     const app = new ThanhHoa();
 
-    @Provider()
-    class SharedService {
-      getData() {
-        return 'shared data';
-      }
-    }
+    app.post('/api/data', async (ctx) => {
+      const body = await ctx.request.json();
+      return new Response(JSON.stringify({ received: body }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
 
-    @Controller('/feature')
-    class FeatureController {
-      constructor(
-        @Inject(SharedService.name) private sharedService: SharedService,
-      ) {}
+    server = app.listen({ port: 3102 });
 
-      @Get('/data')
-      async getData() {
-        return new Response(this.sharedService.getData());
-      }
-    }
+    const response = await fetch('http://localhost:3102/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'test' }),
+    });
+    const data = await response.json();
 
-    @Module({
-      providers: [SharedService],
-      exports: [SharedService],
-    })
-    class SharedModule {}
+    expect(response.status).toBe(200);
+    expect(data.received.name).toBe('test');
+  });
 
-    @Module({
-      imports: [SharedModule],
-      controllers: [FeatureController],
-    })
-    class FeatureModule {}
+  it('should handle route parameters', async () => {
+    const app = new ThanhHoa();
 
-    app.listen({ port: 3002 }, [FeatureModule]);
+    app.get('/users/:id', async (ctx) => {
+      return new Response(`User: ${ctx.params.id}`);
+    });
 
-    const response = await fetch('http://localhost:3002/feature/data');
+    server = app.listen({ port: 3103 });
+
+    const response = await fetch('http://localhost:3103/users/456');
     const text = await response.text();
 
     expect(response.status).toBe(200);
-    expect(text).toBe('shared data');
+    expect(text).toBe('User: 456');
+  });
+
+  it('should handle global middleware', async () => {
+    const app = new ThanhHoa();
+    const logs: string[] = [];
+
+    app.use(async (ctx, next) => {
+      logs.push('before');
+      const response = await next();
+      logs.push('after');
+      return response;
+    });
+
+    app.get('/test', async () => new Response('OK'));
+
+    server = app.listen({ port: 3104 });
+
+    await fetch('http://localhost:3104/test');
+
+    expect(logs).toEqual(['before', 'after']);
   });
 });

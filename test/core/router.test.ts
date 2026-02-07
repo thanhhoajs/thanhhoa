@@ -1,19 +1,13 @@
 import { describe, expect, it } from 'bun:test';
-import { Controller, Get, Router } from '@thanhhoajs/thanhhoa';
+import { Router } from '@thanhhoajs/thanhhoa';
 
 describe('Router', () => {
-  it('should register controller routes', async () => {
+  it('should register and handle functional routes', async () => {
     const router = new Router();
 
-    @Controller('/api')
-    class TestController {
-      @Get('/test')
-      async handler() {
-        return new Response('Test Response');
-      }
-    }
-
-    router.registerController(TestController);
+    router.get('/api/test', async () => {
+      return new Response('Test Response');
+    });
 
     const request = new Request('http://localhost/api/test');
     const context = {
@@ -40,16 +34,7 @@ describe('Router', () => {
     };
 
     router.use(middleware);
-
-    @Controller('/api')
-    class TestController {
-      @Get('/test')
-      async handler() {
-        return new Response('Test');
-      }
-    }
-
-    router.registerController(TestController);
+    router.get('/api/test', async () => new Response('Test'));
 
     const request = new Request('http://localhost/api/test');
     const context = {
@@ -61,5 +46,42 @@ describe('Router', () => {
 
     await router.handle(context);
     expect(middlewareCalled).toBe(true);
+  });
+
+  it('should parse route parameters', async () => {
+    const router = new Router();
+
+    router.get('/users/:id', async (ctx) => {
+      return new Response(`User: ${ctx.params.id}`);
+    });
+
+    const request = new Request('http://localhost/users/123');
+    const context = {
+      request,
+      socketAddress: null,
+      params: {},
+      query: {},
+    };
+
+    const response = await router.handle(context);
+    const text = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(text).toBe('User: 123');
+  });
+
+  it('should return 404 for unregistered routes', async () => {
+    const router = new Router();
+
+    const request = new Request('http://localhost/not-found');
+    const context = {
+      request,
+      socketAddress: null,
+      params: {},
+      query: {},
+    };
+
+    const response = await router.handle(context);
+    expect(response.status).toBe(404);
   });
 });

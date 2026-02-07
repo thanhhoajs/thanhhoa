@@ -5,7 +5,14 @@ import type { INextFunction, IRequestContext } from '@thanhhoajs/thanhhoa';
  * @typedef {('GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE')} HttpMethod
  * @description Supported HTTP methods.
  */
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+export type HttpMethod =
+  | 'GET'
+  | 'POST'
+  | 'PUT'
+  | 'PATCH'
+  | 'DELETE'
+  | 'HEAD'
+  | 'OPTIONS';
 
 /**
  * Represents a route handler function.
