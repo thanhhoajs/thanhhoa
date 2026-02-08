@@ -84,4 +84,97 @@ describe('Router', () => {
     const response = await router.handle(context);
     expect(response.status).toBe(404);
   });
+
+  it('should handle route groups with prefix', async () => {
+    const router = new Router();
+
+    router.group('/users', (r) => {
+      r.get('/', async () => new Response('All Users'));
+      r.get('/:id', async (ctx) => new Response(`User: ${ctx.params.id}`));
+      r.post('/', async () => new Response('Create User'));
+    });
+
+    // Test GET /users
+    const request1 = new Request('http://localhost/users');
+    const ctx1 = {
+      request: request1,
+      socketAddress: null,
+      params: {},
+      query: {},
+    };
+    const response1 = await router.handle(ctx1);
+    expect(await response1.text()).toBe('All Users');
+
+    // Test GET /users/:id
+    const request2 = new Request('http://localhost/users/42');
+    const ctx2 = {
+      request: request2,
+      socketAddress: null,
+      params: {},
+      query: {},
+    };
+    const response2 = await router.handle(ctx2);
+    expect(await response2.text()).toBe('User: 42');
+
+    // Test POST /users
+    const request3 = new Request('http://localhost/users', { method: 'POST' });
+    const ctx3 = {
+      request: request3,
+      socketAddress: null,
+      params: {},
+      query: {},
+    };
+    const response3 = await router.handle(ctx3);
+    expect(await response3.text()).toBe('Create User');
+  });
+
+  it('should mount sub-routers', async () => {
+    const mainRouter = new Router();
+    const userRouter = new Router();
+
+    userRouter.get('/', async () => new Response('All Users'));
+    userRouter.get(
+      '/:id',
+      async (ctx) => new Response(`User: ${ctx.params.id}`),
+    );
+
+    mainRouter.mount('/api/users', userRouter);
+
+    // Test GET /api/users
+    const request1 = new Request('http://localhost/api/users');
+    const ctx1 = {
+      request: request1,
+      socketAddress: null,
+      params: {},
+      query: {},
+    };
+    const response1 = await mainRouter.handle(ctx1);
+    expect(await response1.text()).toBe('All Users');
+
+    // Test GET /api/users/:id
+    const request2 = new Request('http://localhost/api/users/99');
+    const ctx2 = {
+      request: request2,
+      socketAddress: null,
+      params: {},
+      query: {},
+    };
+    const response2 = await mainRouter.handle(ctx2);
+    expect(await response2.text()).toBe('User: 99');
+  });
+
+  it('should handle nested groups', async () => {
+    const router = new Router();
+
+    router.group('/api', (api) => {
+      api.group('/v1', (v1) => {
+        v1.get('/hello', async () => new Response('Hello v1'));
+      });
+    });
+
+    const request = new Request('http://localhost/api/v1/hello');
+    const ctx = { request, socketAddress: null, params: {}, query: {} };
+    const response = await router.handle(ctx);
+    expect(await response.text()).toBe('Hello v1');
+  });
 });

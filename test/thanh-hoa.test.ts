@@ -1,7 +1,6 @@
 import { expect, test, mock, spyOn } from 'bun:test';
 import {
   ThanhHoa,
-  HttpException,
   type IRequestContext,
   type INextFunction,
 } from '@thanhhoajs/thanhhoa';
@@ -124,7 +123,16 @@ test('Route not found', async () => {
 test('HttpException handling', async () => {
   const app = setup();
   app.get('/error', () => {
-    throw new HttpException('Test Error', 400, { reason: 'Bad Request' });
+    throw new Response(
+      JSON.stringify({
+        meta: { message: 'Test Error' },
+        data: { reason: 'Bad Request' },
+      }),
+      {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
   });
 
   const response = await app.handleRequest(

@@ -11,6 +11,14 @@ import { Logger } from '@thanhhoajs/logger';
 // Pre-compiled handler type for maximum performance
 type CompiledHandler = (ctx: IRequestContext) => Response | Promise<Response>;
 
+// Route definition for storage and merging
+interface RouteDefinition {
+  method: HttpMethod;
+  path: string;
+  handler: RouteHandler;
+  middlewares: Middleware[];
+}
+
 /**
  * Compile middleware chain at registration time (not runtime)
  * This eliminates runtime composition overhead
@@ -46,12 +54,12 @@ const compileMiddleware = (
 
 /**
  * High-performance Router class for HTTP routing
- * Optimized for maximum throughput like Rust Axum
  *
- * Key optimizations:
+ * Features:
  * - Pre-compiled middleware chains
- * - Zero-cost path normalization
- * - Minimal allocations on hot path
+ * - Route grouping with prefix
+ * - Sub-router mounting
+ * - Group-specific middleware
  */
 export class Router {
   // Store pre-compiled handlers for instant invocation
@@ -59,6 +67,8 @@ export class Router {
     handler: CompiledHandler;
   }>();
 
+  // Store route definitions for sub-router merging
+  private routes: RouteDefinition[] = [];
   private globalMiddlewares: Middleware[] = [];
   protected logger = Logger.get('THANHHOA');
   private isProductionMode = process.env.NODE_ENV === 'production';
@@ -76,9 +86,11 @@ export class Router {
 
   /**
    * Adds a global middleware
-   * Note: Adding middleware after routes are registered will require re-compilation
    */
-  use(middleware: Middleware): this {
+  use(middleware: Middleware | Router): this {
+    if (middleware instanceof Router) {
+      return this.mount('', middleware);
+    }
     this.globalMiddlewares.push(middleware);
     return this;
   }
@@ -184,6 +196,102 @@ export class Router {
   }
 
   /**
+   * Create a route group with shared prefix and optional middleware
+   *
+   * @example
+   * app.group('/users', (router) => {
+   *   router.get('/', getAllUsers);       // GET /users
+   *   router.get('/:id', getUser);        // GET /users/:id
+   *   router.post('/', createUser);       // POST /users
+   * });
+   *
+   * @example with middleware
+   * app.group('/admin', (router) => {
+   *   router.use(authMiddleware);
+   *   router.get('/dashboard', getDashboard);
+   * });
+   */
+  group(
+    prefix: string,
+    configure: (router: Router) => void,
+    middlewares: Middleware[] = [],
+  ): this {
+    const groupPrefix = this.prefix + this.normalizePath(prefix);
+    const subRouter = new Router(groupPrefix);
+
+    // Inherit parent global middlewares + group-specific middlewares
+    subRouter.globalMiddlewares = [...this.globalMiddlewares, ...middlewares];
+
+    // Configure the sub-router (may include nested groups)
+    configure(subRouter);
+
+    // Merge all routes from sub-router (including nested) into this router
+    for (const route of subRouter.routes) {
+      // Store route definition
+      this.routes.push(route);
+
+      // Register to radix router
+      this.registerRoute(
+        route.method,
+        route.path,
+        route.handler,
+        route.middlewares,
+      );
+    }
+
+    return this;
+  }
+
+  /**
+   * Mount a sub-router at a specific prefix
+   *
+   * @example
+   * const userRouter = new Router();
+   * userRouter.get('/', getAllUsers);
+   * userRouter.get('/:id', getUser);
+   *
+   * app.mount('/users', userRouter);
+   * // or
+   * app.mount('/api/v1', apiRouter);
+   */
+  mount(prefix: string, router: Router): this {
+    const mountPrefix = this.prefix + this.normalizePath(prefix);
+
+    // Re-register all routes from the sub-router with new prefix
+    for (const route of router.routes) {
+      const fullPath =
+        mountPrefix +
+        (route.path === '/' ? '' : this.normalizePath(route.path));
+      const allMiddlewares = [
+        ...this.globalMiddlewares,
+        ...router.globalMiddlewares,
+        ...route.middlewares,
+      ];
+
+      // Store with new path
+      this.routes.push({
+        method: route.method,
+        path: fullPath || '/',
+        handler: route.handler,
+        middlewares: allMiddlewares,
+      });
+
+      this.registerRoute(
+        route.method,
+        fullPath || '/',
+        route.handler,
+        allMiddlewares,
+      );
+    }
+
+    if (!this.isProductionMode) {
+      this.logger.info(`Mounted router at ${mountPrefix}`);
+    }
+
+    return this;
+  }
+
+  /**
    * Internal method to add a route with pre-compiled handler
    * Middleware is compiled at registration time for zero runtime overhead
    */
@@ -202,34 +310,44 @@ export class Router {
           : '/' + path;
 
     const fullPath = this.prefix.length
-      ? `${method}:${this.normalizePath(this.prefix)}${this.normalizePath(normalizedPath)}`
-      : `${method}:${this.normalizePath(normalizedPath)}`;
+      ? this.normalizePath(this.prefix) + this.normalizePath(normalizedPath)
+      : this.normalizePath(normalizedPath);
 
-    // Compile middleware chain at registration time - not runtime!
+    // Store route definition for sub-router merging
+    this.routes.push({
+      method,
+      path: fullPath || '/',
+      handler,
+      middlewares,
+    });
+
+    // Compile and register
     const allMiddlewares = this.globalMiddlewares.length
       ? [...this.globalMiddlewares, ...middlewares]
       : middlewares;
 
-    const compiledHandler = compileMiddleware(allMiddlewares, handler);
-
-    this.radixRouter.insert(fullPath, { handler: compiledHandler });
-
-    // Only log in development
-    if (!this.isProductionMode) {
-      this.logger.info(`Route: ${fullPath}`);
-    }
+    this.registerRoute(method, fullPath || '/', handler, allMiddlewares);
 
     return this;
   }
 
   /**
-   * Mount a group of routes with a common prefix
+   * Register a compiled route to the radix router
    */
-  group(prefix: string, configure: (router: Router) => void): this {
-    const subRouter = new Router(this.prefix + prefix);
-    subRouter.globalMiddlewares = [...this.globalMiddlewares];
-    configure(subRouter);
-    return this;
+  private registerRoute(
+    method: HttpMethod,
+    path: string,
+    handler: RouteHandler,
+    middlewares: Middleware[],
+  ): void {
+    const routeKey = `${method}:${path || '/'}`;
+    const compiledHandler = compileMiddleware(middlewares, handler);
+
+    this.radixRouter.insert(routeKey, { handler: compiledHandler });
+
+    if (!this.isProductionMode) {
+      this.logger.info(`Route: ${routeKey}`);
+    }
   }
 
   /**
@@ -237,6 +355,13 @@ export class Router {
    */
   getPrefix(): string {
     return this.prefix;
+  }
+
+  /**
+   * Get all registered routes (for debugging/documentation)
+   */
+  getRoutes(): RouteDefinition[] {
+    return [...this.routes];
   }
 
   /**
@@ -257,7 +382,7 @@ export class Router {
     if (queryStart === -1) queryStart = url.length;
 
     // Extract pathname without allocation
-    const pathname = url.slice(pathStart, queryStart);
+    const pathname = url.slice(pathStart, queryStart) || '/';
 
     // Inline normalize
     const normalizedPath =
