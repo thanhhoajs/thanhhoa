@@ -101,17 +101,11 @@ export class ThanhHoa<
     return this;
   }
 
-  /**
-   * Set a custom error handler
-   */
   setErrorHandler(handler: IErrorHandler): this {
     this.errorHandler = handler;
     return this;
   }
 
-  /**
-   * Register a shutdown hook
-   */
   onShutdown(hook: () => Promise<void> | void): this {
     this.shutdownHooks.push(hook);
     return this;
@@ -214,9 +208,6 @@ export class ThanhHoa<
     return query;
   }
 
-  /**
-   * Create request context with all helpers
-   */
   private createContext(
     req: Request,
     server: { requestIP: (req: Request) => import('bun').SocketAddress | null },
@@ -224,6 +215,7 @@ export class ThanhHoa<
   ): IRequestContext<TState> {
     const cookies = new Cookies(req);
     const state = this.state;
+    const locals = new Map<string, any>();
 
     return {
       socketAddress: server.requestIP(req),
@@ -232,6 +224,15 @@ export class ThanhHoa<
       query,
       cookies,
       state,
+      locals,
+
+      // Set/Get helpers for middleware data sharing
+      set<T = any>(key: string, value: T): void {
+        locals.set(key, value);
+      },
+      get<T = any>(key: string): T | undefined {
+        return locals.get(key) as T | undefined;
+      },
 
       // Body parsing helpers - lazy evaluation
       json<T = any>() {
@@ -248,6 +249,18 @@ export class ThanhHoa<
       },
       blob() {
         return req.blob();
+      },
+      stream() {
+        return req.body;
+      },
+      preload(
+        path: string,
+        as: 'script' | 'style' | 'image' | 'font' | 'fetch',
+      ) {
+        const link = `<${path}>; rel=preload; as=${as}`;
+        const existing = locals.get('__preload__') || [];
+        existing.push(link);
+        locals.set('__preload__', existing);
       },
     };
   }
@@ -348,6 +361,17 @@ export class ThanhHoa<
           finalResponse = context.cookies.applyToResponse(finalResponse);
         }
 
+        // Apply Preload headers
+        const preloadLinks = context.get<string[]>('__preload__');
+        if (preloadLinks && preloadLinks.length > 0) {
+          const existingLink = finalResponse.headers.get('Link');
+          const newLinks = preloadLinks.join(', ');
+          finalResponse.headers.set(
+            'Link',
+            existingLink ? `${existingLink}, ${newLinks}` : newLinks,
+          );
+        }
+
         return finalResponse;
       } catch (error) {
         if (error instanceof Response) {
@@ -421,6 +445,18 @@ export class ThanhHoa<
         finalResponse = context.cookies.applyToResponse(finalResponse);
       }
 
+      // Apply Preload headers
+      const preloadLinks = context.get<string[]>('__preload__');
+
+      if (preloadLinks && preloadLinks.length > 0) {
+        const existingLink = finalResponse.headers.get('Link');
+        const newLinks = preloadLinks.join(', ');
+        finalResponse.headers.set(
+          'Link',
+          existingLink ? `${existingLink}, ${newLinks}` : newLinks,
+        );
+      }
+
       return finalResponse;
     } catch (error) {
       // Don't log if it's just a 404 (handled normally) unless it's an error
@@ -476,8 +512,12 @@ export class ThanhHoa<
   }
 
   /**
-   * Gracefully shutdown the server
+   * Fetch handler for testing or serverless usage
    */
+  fetch(req: Request, server?: any): Promise<Response> {
+    return this.handleRequest(req, server || { requestIP: () => null });
+  }
+
   async shutdown() {
     this.logger.info('Shutting down server...');
 
@@ -497,9 +537,6 @@ export class ThanhHoa<
     this.logger.success('Server shutdown complete');
   }
 
-  /**
-   * Start the server with HTTP and WebSocket support
-   */
   listen(options: IThanhHoaServeOptions) {
     this.serveOptions = { ...this.serveOptions, ...options };
     this.hasStaticDirs = (this.serveOptions.staticDirectories?.length ?? 0) > 0;

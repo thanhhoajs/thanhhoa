@@ -43,6 +43,45 @@ export interface IRequestContext<TState = Record<string, any>> {
   validatedBody?: any;
 
   /**
+   * JWT payload (set by jwt middleware).
+   */
+  jwtPayload?: Record<string, any>;
+
+  /**
+   * CSRF token (set by csrf middleware).
+   */
+  csrfToken?: string;
+
+  /**
+   * Basic auth username (set by basicAuth middleware).
+   */
+  basicAuthUser?: string;
+
+  /**
+   * Bearer token (set by bearerAuth middleware).
+   */
+  bearerToken?: string;
+
+  /**
+   * Request-scoped locals for sharing data between middlewares.
+   */
+  locals: Map<string, any>;
+
+  /**
+   * Set a value in request locals.
+   * @param key - Key to store value under
+   * @param value - Value to store
+   */
+  set<T = any>(key: string, value: T): void;
+
+  /**
+   * Get a value from request locals.
+   * @param key - Key to retrieve
+   * @returns The stored value or undefined
+   */
+  get<T = any>(key: string): T | undefined;
+
+  /**
    * Parse request body as JSON.
    */
   json<T = any>(): Promise<T>;
@@ -68,7 +107,22 @@ export interface IRequestContext<TState = Record<string, any>> {
   blob(): Promise<Blob>;
 
   /**
+   * Get request body as ReadableStream for efficient streaming of large files.
+   * @returns The request body stream or null if no body
+   */
+  stream(): ReadableStream<Uint8Array> | null;
+
+  /**
    * Additional request-related data.
    */
   [key: string]: any;
+  /**
+   * Helper to set Link header for resource preloading (HTTP/2 Server Push alternative)
+   * @param path URL path to preload
+   * @param as Resource type (script, style, image, etc.)
+   */
+  preload(
+    path: string,
+    as: 'script' | 'style' | 'image' | 'font' | 'fetch',
+  ): void;
 }
