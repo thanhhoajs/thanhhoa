@@ -12,6 +12,16 @@ export interface CompressOptions {
   encoding?: 'gzip' | 'deflate';
 }
 
+// Compressible MIME types - pre-allocated for zero runtime allocation
+const COMPRESSIBLE_TYPES = [
+  'text/',
+  'application/json',
+  'application/javascript',
+  'application/xml',
+  'application/xhtml+xml',
+  'image/svg+xml',
+];
+
 /**
  * Compression middleware
  * Automatically compresses responses above threshold
@@ -37,15 +47,7 @@ export const compress = (options: CompressOptions = {}): Middleware => {
 
     // Check content type - only compress text-based content
     const contentType = response.headers.get('Content-Type') || '';
-    const compressibleTypes = [
-      'text/',
-      'application/json',
-      'application/javascript',
-      'application/xml',
-      'application/xhtml+xml',
-    ];
-
-    const isCompressible = compressibleTypes.some((type) =>
+    const isCompressible = COMPRESSIBLE_TYPES.some((type) =>
       contentType.includes(type),
     );
     if (!isCompressible) {
@@ -76,13 +78,14 @@ export const compress = (options: CompressOptions = {}): Middleware => {
       encoding = 'deflate';
     }
 
-    // Compress using Bun's native compression
-    const compressed = Bun.gzipSync(new Uint8Array(body));
+    // Compress using Bun's native compression with correct algorithm
+    const data = new Uint8Array(body);
+    const compressed =
+      encoding === 'gzip' ? Bun.gzipSync(data) : Bun.deflateSync(data);
 
     const headers = new Headers(response.headers);
     headers.set('Content-Encoding', encoding);
     headers.set('Content-Length', compressed.byteLength.toString());
-    headers.delete('Content-Length'); // Let it be calculated
     headers.set('Vary', 'Accept-Encoding');
 
     return new Response(compressed, {
