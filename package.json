@@ -1,6 +1,6 @@
 {
   "name": "@thanhhoajs/thanhhoa",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Ultra-high performance web framework for Bun. Simple, fast, lightweight.",
   "author": "Nguyen Nhu Khanh <kwalker.nnk@gmail.com>",
   "license": "MIT",
