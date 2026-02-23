@@ -49,9 +49,9 @@ const sha256Hash = async (data: string | Uint8Array): Promise<string> => {
     return typeof hash === 'string'
       ? hash.slice(0, 16)
       : Array.from(hash as Uint8Array)
-        .slice(0, 8)
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
+          .slice(0, 8)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
   }
 
   const hashBuffer = await crypto.subtle.digest('SHA-256', buffer as any);

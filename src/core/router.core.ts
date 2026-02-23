@@ -67,7 +67,7 @@ export class Router {
   protected logger = Logger.get('THANHHOA');
   private isProductionMode = process.env.NODE_ENV === 'production';
 
-  constructor(protected prefix: string = '') { }
+  constructor(protected prefix: string = '') {}
 
   private normalizePath(path: string): string {
     if (path === '/') return '/';

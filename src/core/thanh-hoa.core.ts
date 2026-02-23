@@ -78,10 +78,10 @@ export class ThanhHoa<
     // Only create cache if static directories are configured
     this.staticFileCache = this.hasStaticDirs
       ? new LRUCache({
-        max: ThanhHoa.STATIC_CACHE_SIZE,
-        ttl: ThanhHoa.STATIC_CACHE_TTL,
-        updateAgeOnGet: true,
-      })
+          max: ThanhHoa.STATIC_CACHE_SIZE,
+          ttl: ThanhHoa.STATIC_CACHE_TTL,
+          updateAgeOnGet: true,
+        })
       : (null as any);
   }
 
