@@ -27,8 +27,10 @@ export const timeout = (options: TimeoutOptions = {}): Middleware => {
   const statusCode = options.statusCode ?? 408;
 
   return async (ctx, next) => {
+    let timer: ReturnType<typeof setTimeout>;
+
     const timeoutPromise = new Promise<Response>((_, reject) => {
-      setTimeout(() => {
+      timer = setTimeout(() => {
         reject(
           new Response(
             JSON.stringify({
@@ -47,8 +49,10 @@ export const timeout = (options: TimeoutOptions = {}): Middleware => {
 
     try {
       const response = await Promise.race([next(), timeoutPromise]);
+      clearTimeout(timer!);
       return response;
     } catch (error) {
+      clearTimeout(timer!);
       if (error instanceof Response) {
         return error;
       }

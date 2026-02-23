@@ -51,13 +51,11 @@
     "typescript": "^5.7.3"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.2.0"
   },
   "dependencies": {
     "@thanhhoajs/logger": "latest",
     "ajv": "^8.17.1",
-    "fast-decode-uri-component": "^1.0.1",
-    "lru-cache": "^11.2.5",
     "radix3": "^1.1.2"
   }
 }

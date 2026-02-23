@@ -2,27 +2,31 @@
   <img src="https://drive.google.com/uc?export=view&id=1_M5tYoaKfXpqsOAPQl3WVWs9u5NWrG76" alt="ThanhHoa Logo" width="300"/>
 </p>
 
-# ThanhHoa - Ultra-High Performance Web Framework for Bun
+# ThanhHoa — Ultra-High Performance Web Framework for Bun
 
-ThanhHoa is a lightweight, blazing-fast web framework for Bun. Simple syntax with maximum performance.
+Lightweight, blazing-fast web framework built for [Bun](https://bun.sh). Two runtime dependencies. Zero compromise on speed.
 
-## ✨ Key Features
+[![npm version](https://img.shields.io/npm/v/@thanhhoajs/thanhhoa)](https://www.npmjs.com/package/@thanhhoajs/thanhhoa)
+[![license](https://img.shields.io/npm/l/@thanhhoajs/thanhhoa)](./LICENSE)
 
-- 🚀 **Blazing Fast** - 0.12ms average latency, ~80,000+ req/s
-- 🪶 **Ultra Lightweight** - Minimal memory footprint
-- 🎯 **Simple API** - Easy to learn, easy to use
-- 🍪 **Cookie Handling** - Get, set, delete cookies with ease
-- ✅ **Request Validation** - Built-in ajv schema validation
-- 🔌 **WebSocket Support** - Native Bun WebSocket integration
-- 📦 **App State** - Share state across all requests
-- 🗄️ **Smart Caching** - LRU cache for static files and custom use
+## ✨ Features
 
+- 🚀 **~80,000+ req/s** — 0.12ms average latency on Bun 1.3
+- 🪶 **2 runtime deps** — only `radix3` + `ajv`; everything else is Bun-native
+- 🎯 **Simple API** — routing, middleware, groups, sub-routers
+- 🔐 **Security built-in** — JWT, CSRF, Basic/Bearer auth, helmet, CORS
+- ⚡ **Brotli + gzip + deflate** — auto-negotiated compression
+- 🗄️ **Zero-dep LRU cache** — internal O(1) cache, no npm package needed
+- 🔌 **Native WebSocket** — per-route WebSocket handlers via Bun
+- 🧪 **Test client** — test routes without starting an HTTP server
 
 ## 📦 Installation
 
 ```bash
 bun add @thanhhoajs/thanhhoa
 ```
+
+**Requirements:** Bun >= 1.2.0
 
 ## 🚀 Quick Start
 
@@ -36,126 +40,215 @@ app.get('/hello', () => json({ message: 'Hello World!' }));
 app.listen({ port: 3000 });
 ```
 
-## 📖 Documentation
+---
 
-### Basic Routing
+## 📖 Routing
+
+### HTTP Methods
 
 ```typescript
 import { ThanhHoa, json, text, html } from '@thanhhoajs/thanhhoa';
 
 const app = new ThanhHoa();
 
-// GET request
 app.get('/users', () => json({ users: [] }));
-
-// POST request
-app.post('/users', async (ctx) => {
-  const body = await ctx.request.json();
-  return json({ created: body }, 201);
-});
-
-// PUT request
-app.put('/users/:id', async (ctx) => {
-  const { id } = ctx.params;
-  const body = await ctx.request.json();
-  return json({ updated: { id, ...body } });
-});
-
-// DELETE request
-app.delete('/users/:id', (ctx) => {
-  return json({ deleted: ctx.params.id });
-});
+app.post('/users', async (ctx) => json(await ctx.request.json(), 201));
+app.put('/users/:id', async (ctx) => json({ id: ctx.params.id }));
+app.patch('/users/:id', async (ctx) => json({ updated: true }));
+app.delete('/users/:id', (ctx) => json({ deleted: ctx.params.id }));
+app.head('/ping', () => new Response(null, { status: 204 }));
 
 app.listen({ port: 3000 });
 ```
 
-### Route Parameters
+### Route Parameters & Query
 
 ```typescript
-app.get('/users/:id', (ctx) => {
-  return json({ userId: ctx.params.id });
-});
-
+// Dynamic params
 app.get('/posts/:postId/comments/:commentId', (ctx) => {
   const { postId, commentId } = ctx.params;
   return json({ postId, commentId });
 });
+
+// Query string
+app.get('/search', (ctx) => {
+  const { q, page = '1', limit = '10' } = ctx.query;
+  return json({ q, page, limit });
+});
 ```
 
-### Query Parameters
+### Route Groups
 
 ```typescript
-app.get('/search', (ctx) => {
-  const { q, page, limit } = ctx.query;
-  return json({ 
-    query: q, 
-    page: page || '1', 
-    limit: limit || '10' 
+app.group('/api', (api) => {
+  api.group('/v1', (v1) => {
+    v1.get('/status', () => json({ version: '1.0' })); // GET /api/v1/status
+    v1.get('/users', () => json({ users: [] }));        // GET /api/v1/users
   });
 });
 ```
 
-### Response Helpers
+### Sub-Routers
 
 ```typescript
-import { json, text, html, redirect, stream, sse } from '@thanhhoajs/thanhhoa';
+import { Router, ThanhHoa, json } from '@thanhhoajs/thanhhoa';
 
-// JSON response
-app.get('/api/data', () => json({ data: 'value' }));
+const userRouter = new Router();
+userRouter.get('/', () => json({ users: [] }));
+userRouter.get('/:id', (ctx) => json({ id: ctx.params.id }));
+userRouter.post('/', () => json({ created: true }, 201));
 
-// Plain text
-app.get('/text', () => text('Hello World'));
+const app = new ThanhHoa();
+app.mount('/users', userRouter);
+// Routes: GET /users, GET /users/:id, POST /users
 
-// HTML response
-app.get('/page', () => html('<h1>Welcome</h1>'));
-
-// Redirect
-app.get('/old-path', () => redirect('/new-path'));
-
-// Custom status code
-app.get('/created', () => json({ id: 1 }, 201));
+app.listen({ port: 3000 });
 ```
 
-### Middleware
+---
+
+## 🛠️ Response Helpers
+
+```typescript
+import { json, text, html, redirect } from '@thanhhoajs/thanhhoa';
+
+app.get('/json',     () => json({ data: 'value' }));
+app.get('/text',     () => text('Hello World'));
+app.get('/page',     () => html('<h1>Welcome</h1>'));
+app.get('/old-path', () => redirect('/new-path'));
+app.get('/created',  () => json({ id: 1 }, 201));
+
+// BigInt is serialized safely
+app.get('/bigint', () => json({ id: 9007199254740993n }));
+```
+
+---
+
+## 🔗 Middleware
 
 ```typescript
 // Global middleware
 app.use(async (ctx, next) => {
-  console.log(`${ctx.request.method} ${ctx.request.url}`);
+  const start = Date.now();
   const response = await next();
-  console.log('Request completed');
+  console.log(`${ctx.request.method} ${ctx.request.url} — ${Date.now() - start}ms`);
   return response;
 });
 
-// Route-specific middleware
-const authMiddleware = async (ctx, next) => {
-  const token = ctx.request.headers.get('Authorization');
-  if (!token) {
+// Route-level middleware
+const auth = async (ctx, next) => {
+  if (!ctx.request.headers.get('Authorization')) {
     return json({ error: 'Unauthorized' }, 401);
   }
   return next();
 };
 
-app.get('/protected', (ctx) => json({ secret: 'data' }), [authMiddleware]);
+app.get('/protected', (ctx) => json({ ok: true }), [auth]);
+```
+
+### Context (`ctx`) API
+
+```typescript
+ctx.request         // Native Fetch API Request
+ctx.params          // Route params: { id: '42' }
+ctx.query           // Query string: { q: 'search' }
+ctx.cookies         // Cookie interface (get/set/delete)
+ctx.socketAddress   // Client IP info
+ctx.state           // Typed app-wide state
+ctx.locals          // Request-scoped Map (ctx.set / ctx.get)
+ctx.validatedBody   // Body after validate() middleware
+ctx.jwtPayload      // JWT payload after jwt() middleware
+ctx.csrfToken       // CSRF token after csrf() middleware
+
+// Shortcut body parsers
+await ctx.json<T>()
+await ctx.text()
+await ctx.formData()
+ctx.stream()
+
+// Resource preloading (Link header)
+ctx.preload('/style.css', 'style');
+ctx.preload('/app.js', 'script');
+```
+
+---
+
+## 🔐 Security Middleware
+
+### JWT Authentication
+
+```typescript
+import { jwt, signToken, verifyToken, decodeToken } from '@thanhhoajs/thanhhoa';
+
+const token = await signToken({ userId: 1 }, 'your-secret', { expiresIn: 3600 });
+
+app.use(jwt({
+  secret: 'your-secret',
+  skip: ['/login', '/register']
+}));
+
+app.get('/profile', (ctx) => json({ user: ctx.jwtPayload }));
+
+const payload = decodeToken(token); // Decode without verification
+```
+
+### CSRF Protection
+
+```typescript
+import { csrf } from '@thanhhoajs/thanhhoa';
+
+app.use(csrf());
+
+app.get('/form', (ctx) => html(`
+  <form method="POST" action="/submit">
+    <input type="hidden" name="_csrf" value="${ctx.csrfToken}">
+    <button>Submit</button>
+  </form>
+`));
+// AJAX: send X-CSRF-Token header with the token value
+```
+
+### Basic Auth
+
+```typescript
+import { basicAuth } from '@thanhhoajs/thanhhoa';
+
+app.use(basicAuth({ username: 'admin', password: 'secret' }));
+
+// Custom validation
+app.use(basicAuth({
+  username: '',
+  password: '',
+  validate: async (user, pass) => db.verifyUser(user, pass)
+}));
+```
+
+### Bearer Token Auth
+
+```typescript
+import { bearerAuth } from '@thanhhoajs/thanhhoa';
+
+app.use(bearerAuth({ token: process.env.API_KEY! }));
+
+// Dynamic validation
+app.use(bearerAuth({
+  validate: async (token) => db.isValidApiKey(token)
+}));
 ```
 
 ### Security Headers (Helmet)
 
 ```typescript
-import { helmet } from '@thanhhoajs/thanhhoa/middleware';
+import { helmet } from '@thanhhoajs/thanhhoa';
 
 app.use(helmet());
-// or with options
-app.use(helmet({
-  contentSecurityPolicy: false,
-  xssFilter: true
-}));
+app.use(helmet({ contentSecurityPolicy: false }));
 ```
 
 ### CORS
 
 ```typescript
-import { cors } from '@thanhhoajs/thanhhoa/middleware';
+import { cors } from '@thanhhoajs/thanhhoa';
 
 app.use(cors({
   origin: 'https://example.com',
@@ -164,483 +257,148 @@ app.use(cors({
 }));
 ```
 
+---
+
+## ⚡ Performance Middleware
+
+### Compression (Brotli / Gzip / Deflate)
+
+Auto-negotiated via `Accept-Encoding`. Brotli (`br`) is preferred when available.
+
+```typescript
+import { compress } from '@thanhhoajs/thanhhoa';
+
+app.use(compress()); // br > gzip > deflate (default)
+
+app.use(compress({
+  threshold: 1024,           // Only compress > 1KB
+  encoding: ['gzip'],        // Force gzip only
+}));
+```
+
+### Cache-Control
+
+```typescript
+import {
+  cacheControl,
+  noStore,
+  publicCache,
+  privateCache
+} from '@thanhhoajs/thanhhoa';
+
+// API routes — no caching
+app.group('/api', (r) => { /* ... */ }, [noStore()]);
+
+// Public CDN assets — 1 hour, stale-while-revalidate
+app.use(publicCache(3600, { staleWhileRevalidate: 60 }));
+
+// Per-user content — browser cache only, 5 min
+app.use(privateCache(300));
+
+// Versioned static assets — immutable, 1 year
+app.use(publicCache(31536000, { immutable: true }));
+
+// Full control
+app.use(cacheControl({
+  maxAge: 3600,
+  staleIfError: 86400,
+  mustRevalidate: true,
+  skip: ['/health']
+}));
+```
+
 ### Rate Limiting
 
 ```typescript
-import { rateLimit, MemoryStore, RedisStore } from '@thanhhoajs/thanhhoa/middleware';
+import { rateLimit, MemoryStore } from '@thanhhoajs/thanhhoa';
 
-// In-memory (default, single instance)
+// In-memory (single instance)
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 100,
   message: 'Too many requests'
 }));
 
-// With Redis (distributed, multi-instance)
+// Redis (distributed)
 import { RedisClient } from 'bun';
+import { RedisStore } from '@thanhhoajs/thanhhoa';
 
 const redis = new RedisClient('redis://localhost:6379');
+app.use(rateLimit({ store: new RedisStore(redis), windowMs: 60000, max: 100 }));
 
+// Custom key (by user ID instead of IP)
 app.use(rateLimit({
-  store: new RedisStore(redis),
-  windowMs: 15 * 60 * 1000,
-  max: 100
-}));
-
-// Custom key generator (by user ID instead of IP)
-app.use(rateLimit({
-  keyGenerator: (req) => req.headers.get('X-User-ID') || 'anonymous',
+  keyGenerator: (req) => req.headers.get('X-User-ID') ?? 'anon',
   max: 1000
 }));
 
-// Skip certain paths
-app.use(rateLimit({
-  max: 100,
-  skip: ['/health', '/metrics']
-}));
+// Skip paths
+app.use(rateLimit({ max: 100, skip: ['/health', '/metrics'] }));
 ```
 
 #### Sliding Window Rate Limit (Redis)
 
-More accurate rate limiting using sliding window algorithm.
-
 ```typescript
-import { slidingWindowRateLimit } from '@thanhhoajs/thanhhoa/middleware';
-import { RedisClient } from 'bun';
+import { slidingWindowRateLimit } from '@thanhhoajs/thanhhoa';
 
-const redis = new RedisClient();
-
-app.use(slidingWindowRateLimit({
-  redis,
-  max: 100,
-  windowMs: 60000
-}));
+app.use(slidingWindowRateLimit({ redis, max: 100, windowMs: 60000 }));
 ```
 
-
-### Logger
-
-```typescript
-import { logger } from '@thanhhoajs/thanhhoa/middleware';
-
-app.use(logger({
-  level: 'info'
-}));
-// Logs: GET /api/users 200 - 12.34ms
-```
-
-### Compression
+### ETag (HTTP Caching)
 
 ```typescript
-import { compress } from '@thanhhoajs/thanhhoa/middleware';
+import { etag } from '@thanhhoajs/thanhhoa';
 
-app.use(compress({
-  threshold: 1024 // Only compress responses > 1KB
-}));
+app.use(etag());                              // Weak ETag, FNV-1a
+app.use(etag({ weak: false, algorithm: 'sha256' })); // Strong ETag
 ```
+
+---
+
+## 🛡️ Request Middleware
 
 ### Body Size Limit
 
 ```typescript
-import { bodyLimit } from '@thanhhoajs/thanhhoa/middleware';
+import { bodyLimit } from '@thanhhoajs/thanhhoa';
 
-app.use(bodyLimit({
-  maxSize: 1024 * 1024, // 1MB
-  message: 'Request body too large'
-}));
+app.use(bodyLimit({ maxSize: 1024 * 1024 })); // 1 MB
 ```
 
 ### Request Timeout
 
 ```typescript
-import { timeout } from '@thanhhoajs/thanhhoa/middleware';
+import { timeout } from '@thanhhoajs/thanhhoa';
 
-app.use(timeout({
-  ms: 30000, // 30 seconds
-  message: 'Request timeout'
-}));
-```
-
-### ETag (HTTP Caching)
-
-Generate ETags for responses and handle conditional requests (`If-None-Match`).
-
-```typescript
-import { etag } from '@thanhhoajs/thanhhoa/middleware';
-
-app.use(etag()); // Weak ETag, fast FNV-1a hash
-
-// Strong ETag with SHA-256
-app.use(etag({ weak: false, algorithm: 'sha256' }));
-```
-
-### JWT Authentication
-
-Verify JWT tokens and attach payload to context.
-
-```typescript
-import { jwt, signToken, decodeToken } from '@thanhhoajs/thanhhoa/middleware';
-
-// Sign a token
-const token = await signToken({ userId: 1 }, 'secret', { expiresIn: 3600 });
-
-// Middleware
-app.use(jwt({
-  secret: 'your-secret-key',
-  skip: ['/login', '/register']
-}));
-
-app.get('/profile', (ctx) => {
-  return json({ user: ctx.jwtPayload });
-});
-
-// Decode without verification (debugging)
-const payload = decodeToken(token);
-```
-
-### CSRF Protection
-
-Double-submit cookie pattern for CSRF protection.
-
-```typescript
-import { csrf } from '@thanhhoajs/thanhhoa/middleware';
-
-app.use(csrf());
-
-// GET token for forms
-app.get('/form', (ctx) => {
-  return html(`
-    <form method="POST">
-      <input type="hidden" name="_csrf" value="${ctx.csrfToken}">
-      <button>Submit</button>
-    </form>
-  `);
-});
-
-// AJAX: Include X-CSRF-Token header
-```
-
-### Basic Authentication
-
-HTTP Basic Authentication with timing-safe comparison.
-
-```typescript
-import { basicAuth } from '@thanhhoajs/thanhhoa/middleware';
-
-// Static credentials
-app.use(basicAuth({ username: 'admin', password: 'secret' }));
-
-// Custom validation
-app.use(basicAuth({
-  username: '',
-  password: '',
-  validate: async (user, pass) => {
-    return await db.verifyUser(user, pass);
-  }
-}));
-```
-
-### Bearer Token Authentication
-
-API key or custom token authentication.
-
-```typescript
-import { bearerAuth } from '@thanhhoajs/thanhhoa/middleware';
-
-// Static token
-app.use(bearerAuth({ token: process.env.API_KEY }));
-
-// Custom validation
-app.use(bearerAuth({
-  validate: async (token) => await db.isValidApiKey(token)
-}));
-```
-
-### File Responses
-
-Serve files, force downloads, and handle binary data.
-
-```typescript
-import { file, attachment, blob, inline } from '@thanhhoajs/thanhhoa/utils';
-
-// Serve file with auto MIME type
-app.get('/doc/:id', async (ctx) => {
-  return file(`./docs/${ctx.params.id}.pdf`);
-});
-
-// Force download
-app.get('/export', async () => {
-  return attachment('./data.csv', 'report.csv');
-});
-
-// Binary response
-app.get('/image', () => {
-  const buffer = generateImage();
-  return blob(buffer, 'image/png');
-});
-
-// Display inline
-app.get('/preview', async () => {
-  return inline('./document.pdf');
-});
-```
-
-### Test Client
-
-Test routes without starting an HTTP server.
-
-```typescript
-import { testClient } from '@thanhhoajs/thanhhoa/utils';
-
-const app = new ThanhHoa();
-app.get('/hello', () => json({ message: 'Hello!' }));
-
-const client = testClient(app);
-
-// Make requests
-const res = await client.get('/hello');
-console.log(await res.json()); // { message: 'Hello!' }
-
-// POST with body
-const postRes = await client.post('/users', {
-  body: { name: 'John' },
-  headers: { 'Authorization': 'Bearer token' }
-});
-```
-
-### Context Data Sharing
-
-Share data between middlewares using `ctx.set()` and `ctx.get()`.
-
-```typescript
-// In middleware
-const authMiddleware = async (ctx, next) => {
-  const user = await getUser(ctx);
-  ctx.set('user', user);
-  return next();
-};
-
-// In handler
-app.get('/profile', (ctx) => {
-  const user = ctx.get('user');
-  return json(user);
-});
-
-// Direct access via ctx.locals Map
-app.use(async (ctx, next) => {
-  ctx.locals.set('startTime', Date.now());
-  return next();
-});
-```
-
-
-### Static Files
-
-```typescript
-const app = new ThanhHoa('', {
-  staticDirectories: [
-    { path: '/static', directory: 'public' },
-    { path: '/assets', directory: 'assets' }
-  ]
-});
-
-// Files in ./public will be served at /static/*
-// Files in ./assets will be served at /assets/*
-```
-
-### Error Handling
-
-```typescript
-import { HttpException } from '@thanhhoajs/thanhhoa';
-
-app.get('/error', () => {
-  throw new HttpException('Something went wrong', 500);
-});
-
-app.get('/not-found', () => {
-  throw new HttpException('Resource not found', 404);
-});
-```
-
-### Global Error Handler
-
-```typescript
-app.setErrorHandler({
-  handle(error, ctx) {
-    console.error(error);
-    return json({
-      error: 'Internal Server Error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    }, 500);
-  }
-});
+app.use(timeout({ ms: 30000, message: 'Request timed out' }));
 ```
 
 ### Request ID
 
-Automatically generate UUID for each request.
+Stored in `ctx.get('requestId')` and `X-Request-ID` response header.
 
 ```typescript
-import { requestId } from '@thanhhoajs/thanhhoa/middleware';
+import { requestId } from '@thanhhoajs/thanhhoa';
 
+app.use(requestId());
 app.use(requestId({ header: 'X-Trace-ID' }));
 ```
 
-### File Upload
-
-Helper utility to save uploaded files.
+### Logger
 
 ```typescript
-import { uploadFile } from '@thanhhoajs/thanhhoa/utils';
+import { logger } from '@thanhhoajs/thanhhoa';
 
-app.post('/upload', async (ctx) => {
-    const formData = await ctx.formData();
-    const file = formData.get('file');
-    
-    if (file instanceof File) {
-        const result = await uploadFile(file, {
-            directory: 'uploads',
-            allowedTypes: ['image/png', 'image/jpeg'],
-            maxSize: 5 * 1024 * 1024
-        });
-        return json(result);
-    }
-});
+app.use(logger());
+// [THANHHOA] GET /api/users 200 — 2.41ms
 ```
 
-### SPA Fallback (Static Hosting)
+---
 
-For Single Page Applications (React, Vue, etc.), serve `index.html` for unknown routes.
-
-```typescript
-const app = new ThanhHoa({
-    spa: true, // Enable SPA mode
-    staticDirectories: [{ path: '/static', directory: 'public' }]
-});
-```
-
-### Request Context
-
-
+## ✅ Validation (ajv)
 
 ```typescript
-interface IRequestContext {
-  request: Request;           // Native Request object
-  params: Record<string, string>;   // Route parameters
-  query: Record<string, string>;    // Query parameters
-  socketAddress: SocketAddress | null;  // Client IP info
-}
-
-app.get('/info', (ctx) => {
-  return json({
-    method: ctx.request.method,
-    url: ctx.request.url,
-    params: ctx.params,
-    query: ctx.query,
-    ip: ctx.socketAddress?.address
-  });
-});
-```
-
-### Route Groups
-
-```typescript
-// Group routes with shared prefix
-app.group('/users', (router) => {
-  router.get('/', () => json({ users: [] }));         // GET /users
-  router.get('/:id', (ctx) => json(ctx.params));      // GET /users/:id
-  router.post('/', () => json({ created: true }));    // POST /users
-});
-
-// Nested groups
-app.group('/api', (api) => {
-  api.group('/v1', (v1) => {
-    v1.get('/status', () => json({ version: '1.0' })); // GET /api/v1/status
-  });
-});
-```
-
-### Mount Sub-Router
-
-```typescript
-import { Router, ThanhHoa, json } from '@thanhhoajs/thanhhoa';
-
-// Create a sub-router
-const userRouter = new Router();
-userRouter.get('/', () => json({ users: [] }));
-userRouter.get('/:id', (ctx) => json({ id: ctx.params.id }));
-userRouter.post('/', () => json({ created: true }));
-
-// Mount to main app
-const app = new ThanhHoa();
-app.mount('/api/users', userRouter);
-
-// Routes available:
-// GET /api/users
-// GET /api/users/:id
-// POST /api/users
-
-app.listen({ port: 3000 });
-```
-
-### Starting the Server
-
-```typescript
-const server = app.listen({
-  port: 3000,
-  hostname: 'localhost'
-});
-
-console.log(`Server running at http://${server.hostname}:${server.port}`);
-```
-
-### Cookies
-
-```typescript
-// Get cookie
-app.get('/profile', (ctx) => {
-  const session = ctx.cookies.get('session');
-  return json({ session });
-});
-
-// Set cookie
-app.post('/login', async (ctx) => {
-  ctx.cookies.set('session', 'abc123', {
-    httpOnly: true,
-    maxAge: 3600,
-    path: '/'
-  });
-  return json({ success: true });
-});
-
-// Delete cookie
-app.post('/logout', (ctx) => {
-  ctx.cookies.delete('session');
-  return json({ loggedOut: true });
-});
-```
-
-### Request Body Parsing
-
-```typescript
-app.post('/users', async (ctx) => {
-  // Parse JSON body
-  const data = await ctx.json<{ name: string }>();
-  
-  // Or text
-  const text = await ctx.text();
-  
-  // Or FormData
-  const form = await ctx.formData();
-  
-  return json({ received: data });
-});
-```
-
-### Request Validation (ajv)
-
-```typescript
-import { validate, validateQuery, json } from '@thanhhoajs/thanhhoa';
+import { validate, validateQuery, validateParams } from '@thanhhoajs/thanhhoa';
 
 const userSchema = {
   type: 'object',
@@ -651,22 +409,197 @@ const userSchema = {
   required: ['name', 'email']
 };
 
-// Middleware runs BEFORE handler
-// Validated body is stored in ctx.validatedBody
 app.post('/users', async (ctx) => {
-  const user = ctx.validatedBody; // Already validated!
-  return json({ created: user });
+  const user = ctx.validatedBody; // Already validated and typed
+  return json({ created: user }, 201);
 }, [validate(userSchema)]);
 
-// Multiple middlewares (runs left to right, then handler)
-app.post('/admin/users', adminHandler, [authMiddleware, validate(userSchema)]);
-
-// Validate query parameters
-const searchSchema = { type: 'object', properties: { q: { type: 'string' } } };
-app.get('/search', searchHandler, [validateQuery(searchSchema)]);
+// Query params
+app.get('/search', handler, [validateQuery({ type: 'object', properties: { q: { type: 'string' } } })]);
 ```
 
-### App State
+---
+
+## 🍪 Cookies
+
+```typescript
+app.get('/profile', (ctx) => {
+  const session = ctx.cookies.get('session');
+  return json({ session });
+});
+
+app.post('/login', (ctx) => {
+  ctx.cookies.set('session', 'token123', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Strict',
+    maxAge: 3600
+  });
+  return json({ success: true });
+});
+
+app.post('/logout', (ctx) => {
+  ctx.cookies.delete('session');
+  return json({ loggedOut: true });
+});
+```
+
+---
+
+## 📁 Static Files & SPA
+
+```typescript
+const app = new ThanhHoa({
+  staticDirectories: [
+    { path: '/static', directory: 'public' },
+    { path: '/assets', directory: 'assets' }
+  ],
+  spa: true // Serve index.html for unknown routes
+});
+```
+
+---
+
+## 🔌 WebSocket
+
+```typescript
+app.ws('/chat', {
+  open(ws) {
+    console.log('Connected:', ws.data.id);
+    ws.subscribe('room:1');
+  },
+  message(ws, msg) {
+    ws.publish('room:1', msg);
+  },
+  close(ws, code, reason) {
+    console.log('Disconnected');
+  }
+});
+```
+
+---
+
+## 📂 File Responses
+
+```typescript
+import { file, attachment, inline, blob } from '@thanhhoajs/thanhhoa';
+
+app.get('/pdf/:id',  (ctx) => file(`./docs/${ctx.params.id}.pdf`));
+app.get('/export',   () => attachment('./data.csv', 'report.csv'));
+app.get('/preview',  () => inline('./document.pdf'));
+app.get('/image',    () => blob(generateBuffer(), 'image/png'));
+```
+
+---
+
+## 📤 File Upload
+
+```typescript
+import { uploadFile } from '@thanhhoajs/thanhhoa';
+
+app.post('/upload', async (ctx) => {
+  const formData = await ctx.formData();
+  const file = formData.get('file');
+
+  if (!(file instanceof File)) return json({ error: 'No file' }, 400);
+
+  const result = await uploadFile(file, {
+    directory: 'uploads',
+    allowedTypes: ['image/png', 'image/jpeg'],
+    maxSize: 5 * 1024 * 1024 // 5 MB
+  });
+
+  return json(result);
+});
+```
+
+---
+
+## 🌊 Streams & SSE
+
+```typescript
+import { streamResponse, createDirectStream } from '@thanhhoajs/thanhhoa';
+
+// Server-Sent Events
+app.get('/events', () =>
+  streamResponse(async function* () {
+    yield 'data: connected\n\n';
+    for (let i = 0; i < 10; i++) {
+      await Bun.sleep(1000);
+      yield `data: tick ${i}\n\n`;
+    }
+  }(), { headers: { 'Content-Type': 'text/event-stream' } })
+);
+
+// Zero-copy direct stream
+app.get('/stream', () => {
+  const body = createDirectStream(async (ctrl) => {
+    ctrl.write('hello ');
+    ctrl.write('world');
+  });
+  return new Response(body);
+});
+```
+
+---
+
+## 🗄️ Session Management
+
+```typescript
+import { sessionManager, MemorySessionStore, RedisSessionStore } from '@thanhhoajs/thanhhoa';
+import { RedisClient } from 'bun';
+
+// Development: in-memory
+const session = sessionManager(new MemorySessionStore());
+
+// Production: Redis
+const session = sessionManager(new RedisSessionStore(new RedisClient()), {
+  ttl: 86400 // 24 hours
+});
+
+app.post('/login', async (ctx) => {
+  const id = await session.create({ userId: 1, role: 'admin' });
+  ctx.cookies.set('session', id, { httpOnly: true, secure: true });
+  return json({ success: true });
+});
+
+app.get('/me', async (ctx) => {
+  const data = await session.get(ctx.cookies.get('session')!);
+  if (!data) return json({ error: 'Not logged in' }, 401);
+  return json(data);
+});
+
+app.post('/logout', async (ctx) => {
+  await session.destroy(ctx.cookies.get('session')!);
+  ctx.cookies.delete('session');
+  return json({ success: true });
+});
+```
+
+---
+
+## 🧪 Testing (No HTTP server needed)
+
+```typescript
+import { testClient } from '@thanhhoajs/thanhhoa';
+
+const app = new ThanhHoa();
+app.get('/hello', () => json({ message: 'Hello!' }));
+
+const client = testClient(app);
+
+const res = await client.get('/hello');
+console.log(await res.json()); // { message: 'Hello!' }
+
+const post = await client.post('/users', {
+  body: { name: 'John' },
+  headers: { Authorization: 'Bearer token' }
+});
+```
+
+---
+
+## 🔌 App State
 
 ```typescript
 interface AppState {
@@ -675,223 +608,102 @@ interface AppState {
 }
 
 const app = new ThanhHoa<AppState>();
-
-// Set state
 app.state.db = dbConnection;
-app.state.config = appConfig;
 
-// Access in handlers
 app.get('/users', (ctx) => {
   const users = ctx.state.db.query('SELECT * FROM users');
   return json({ users });
 });
 ```
 
-### WebSocket
+---
+
+## 🚀 Starting the Server
 
 ```typescript
-app.ws('/chat', {
-  open(ws) {
-    console.log('Client connected:', ws.data.id);
-  },
-  message(ws, message) {
-    ws.send(`Echo: ${message}`);
-  },
-  close(ws) {
-    console.log('Client disconnected');
+// Basic
+app.listen({ port: 3000 });
+
+// With hostname
+app.listen({ port: 3000, hostname: '0.0.0.0' });
+
+// HTTPS (TLS)
+app.listen({
+  port: 443,
+  tls: {
+    key: Bun.file('./server.key'),
+    cert: Bun.file('./server.cert')
   }
 });
 ```
 
-### Stream Utilities
+---
 
-Bun-native stream utilities for maximum performance (no Response wrapper overhead).
+## 🗄️ LRU Cache Utility
 
-```typescript
-import {
-  streamToArrayBuffer,
-  streamToBytes,
-  streamToText,
-  streamToJSON,
-  streamToBlob,
-  createDirectStream,
-  streamResponse,
-  createBufferSink
-} from '@thanhhoajs/thanhhoa/utils';
-
-// Process large file uploads without loading into memory
-app.post('/upload', async (ctx) => {
-  const stream = ctx.stream();
-  if (!stream) return json({ error: 'No body' }, 400);
-
-  // Convert to various formats using Bun's native APIs
-  const bytes = await streamToBytes(stream);   // Uint8Array
-  const buffer = await streamToArrayBuffer(stream); // ArrayBuffer
-  const text = await streamToText(stream);     // string
-  const data = await streamToJSON(stream);     // parsed JSON
-
-  return json({ size: bytes.length });
-});
-
-// Server-Sent Events with async generator
-app.get('/events', () => {
-  return streamResponse(async function* () {
-    yield 'data: connected\n\n';
-    for (let i = 0; i < 10; i++) {
-      await Bun.sleep(1000);
-      yield `data: tick ${i}\n\n`;
-    }
-  }(), {
-    headers: { 'Content-Type': 'text/event-stream' }
-  });
-});
-
-// Zero-copy Direct ReadableStream
-app.get('/direct', () => {
-  const stream = createDirectStream(async (controller) => {
-    controller.write('chunk1');
-    controller.write('chunk2');
-  });
-  return new Response(stream);
-});
-
-// Incremental buffer building
-const sink = createBufferSink({ highWaterMark: 1024 * 64 });
-sink.write('hello');
-sink.write(' world');
-const result = sink.end(); // Uint8Array
-```
-
-### Session Management
+Built-in O(1) LRU cache — no npm dependency required.
 
 ```typescript
-import { sessionManager, MemorySessionStore, RedisSessionStore } from '@thanhhoajs/thanhhoa/utils';
-import { RedisClient } from 'bun';
+import { LRUCache } from '@thanhhoajs/thanhhoa';
 
-// In-memory (development)
-const session = sessionManager(new MemorySessionStore());
-
-// Redis (production)
-const redis = new RedisClient();
-const session = sessionManager(new RedisSessionStore(redis), {
-  ttl: 86400 // 24 hours
-});
-
-// Create session
-app.post('/login', async (ctx) => {
-  const sessionId = await session.create({ userId: 1, role: 'admin' });
-  ctx.cookies.set('session', sessionId, { httpOnly: true });
-  return json({ success: true });
-});
-
-// Get session
-app.get('/profile', async (ctx) => {
-  const sessionId = ctx.cookies.get('session');
-  const data = await session.get(sessionId);
-  if (!data) return json({ error: 'Not logged in' }, 401);
-  return json({ user: data });
-});
-
-// Destroy session
-app.post('/logout', async (ctx) => {
-  const sessionId = ctx.cookies.get('session');
-  await session.destroy(sessionId);
-  ctx.cookies.delete('session');
-  return json({ success: true });
-});
-```
-
-### Cache Utility
-
-```typescript
-import { createCache, SimpleCache } from '@thanhhoajs/thanhhoa';
-
-// LRU Cache (recommended)
-const cache = createCache<string, User>({
+const cache = new LRUCache<string, User>({
   max: 1000,
-  ttl: 60000 // 1 minute
+  ttl: 60_000,        // ms, optional
+  updateAgeOnGet: true
 });
 
 cache.set('user:1', userData);
-const user = cache.get('user:1');
-
-// Simple Cache (no LRU)
-const simple = new SimpleCache<string, string>(30000);
-simple.set('key', 'value');
+const user = cache.get('user:1'); // undefined if expired or evicted
+cache.has('user:1');
+cache.delete('user:1');
+cache.clear();
 ```
+
+---
+
+## 🔴 Error Handling
+
+```typescript
+import { HttpException } from '@thanhhoajs/thanhhoa';
+
+// Throw from anywhere — returns correct status automatically
+app.get('/item/:id', (ctx) => {
+  throw new HttpException('Not found', 404);
+});
+
+// Custom global error handler
+app.setErrorHandler({
+  handle(error, ctx) {
+    if (error instanceof HttpException) return error.toResponse();
+    return json({ error: 'Internal Server Error' }, 500);
+  }
+});
+```
+
+---
 
 ## 📊 Benchmark Results
 
-
-**Test Environment**: Windows 11, Bun 1.3.8
-
-**Configuration**: 5,000 iterations × 2 requests per iteration
+**Environment:** Windows 11, Bun 1.3.8
+**Config:** 5,000 iterations × 2 requests per iteration
 
 | Metric | Result |
-|--------|--------|
-| **Average Latency** | **0.12ms** |
-| **Memory Usage** | **0.00 MB** (per request) |
-
-### Performance Comparison
+|---|---|
+| Average Latency | **0.12ms** |
+| Throughput | **~80,000+ req/s** |
 
 | Framework | Estimated RPS |
-|-----------|---------------|
+|---|---|
 | Express.js | ~13,000 |
 | Fastify | ~30,000 |
 | Hono | ~60,000 |
 | ElysiaJS | ~70,000 |
 | **ThanhHoaJS** | **~80,000+** |
 
-> 💡 For production, set `NODE_ENV=production` to enable optimizations.
+> Set `NODE_ENV=production` for maximum performance.
 
-## ⚡ Advanced Optimizations
-
-### ETag Support for Binary Data
-
-The ETag middleware now supports `ArrayBuffer` and `Blob` bodies, allowing efficient caching for images, PDFs, and other binary assets.
-
-```typescript
-import { etag } from '@thanhhoajs/thanhhoa/middleware';
-
-// Enable ETag with optional binary support (enabled by default if body is readable)
-app.use(etag({
-  algorithm: 'fnv1a', // or 'sha256'
-  threshold: 1024     // min size to hash
-}));
-
-app.get('/image', () => new Response(bunFile));
-```
-
-### Preloading Resources (HTTP/2 Server Push alternative)
-
-Use `ctx.preload()` to verify add `Link` headers for resource hints, helping browsers load critical assets faster.
-
-```typescript
-app.get('/', (ctx) => {
-  // Adds: Link: </style.css>; rel=preload; as=style
-  ctx.preload('/style.css', 'style');
-  ctx.preload('/script.js', 'script');
-  
-  return html('<h1>Hello</h1>');
-});
-```
-
-### Redis Connection Management
-
-Use the built-in utility to manage a singleton Redis connection, preventing connection leaks.
-
-```typescript
-import { getRedisClient } from '@thanhhoajs/thanhhoa/utils/redis';
-
-// Auto-connects lazily (requires 'ioredis' installed)
-const redis = await getRedisClient({
-  host: 'localhost',
-  port: 6379
-});
-```
-
-Nguyen Nhu Khanh <kwalker.nnk@gmail.com>
+---
 
 ## 📄 License
 
-[MIT License](https://github.com/thanhhoajs/thanhhoa?tab=MIT-1-ov-file)
+[MIT](https://github.com/thanhhoajs/thanhhoa?tab=MIT-1-ov-file) © Nguyen Nhu Khanh

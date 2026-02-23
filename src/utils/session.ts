@@ -1,6 +1,5 @@
 /**
  * Session management utilities with Redis support
- * Uses Bun's native Redis client
  */
 
 interface SessionData {

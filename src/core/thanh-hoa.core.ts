@@ -1,5 +1,4 @@
-import { LRUCache } from 'lru-cache';
-import fastDecode from 'fast-decode-uri-component';
+import { LRUCache } from '../utils/lru-cache';
 import { Router } from './router.core';
 import type {
   IRequestContext,
@@ -15,11 +14,11 @@ import {
 import { DefaultErrorHandler, type IErrorHandler } from './error-handler';
 import type { ServerWebSocket, Server } from 'bun';
 
-// Pre-allocated CORS headers for OPTIONS requests - zero allocation
+const EMPTY_QUERY: Record<string, string> = Object.freeze({});
+
 const CORS_METHODS = 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS';
 const CORS_MAX_AGE = '86400';
 
-// Pre-allocated responses for common cases
 const OPTIONS_RESPONSE_HEADERS = {
   'Access-Control-Allow-Methods': CORS_METHODS,
   'Access-Control-Allow-Credentials': 'true',
@@ -79,10 +78,10 @@ export class ThanhHoa<
     // Only create cache if static directories are configured
     this.staticFileCache = this.hasStaticDirs
       ? new LRUCache({
-          max: ThanhHoa.STATIC_CACHE_SIZE,
-          ttl: ThanhHoa.STATIC_CACHE_TTL,
-          updateAgeOnGet: true,
-        })
+        max: ThanhHoa.STATIC_CACHE_SIZE,
+        ttl: ThanhHoa.STATIC_CACHE_TTL,
+        updateAgeOnGet: true,
+      })
       : (null as any);
   }
 
@@ -111,9 +110,19 @@ export class ThanhHoa<
     return this;
   }
 
-  /**
-   * Fast OPTIONS handler - pre-allocated response headers
-   */
+  private async handleSpaFallback(): Promise<Response | null> {
+    const dirs = this.serveOptions.staticDirectories!;
+    const cached = await this.handleStaticFile('/index.html');
+    if (cached) return cached;
+    for (const dir of dirs) {
+      const file = Bun.file(`${process.cwd()}/${dir.directory}/index.html`);
+      if (await file.exists()) {
+        return new Response(file);
+      }
+    }
+    return null;
+  }
+
   private handleOptions(req: Request): Response {
     const origin = req.headers.get('origin');
     const requestHeaders = req.headers.get('access-control-request-headers');
@@ -134,7 +143,6 @@ export class ThanhHoa<
   private async handleStaticFile(pathname: string): Promise<Response | null> {
     if (!this.hasStaticDirs) return null;
 
-    // Check cache first (normal files)
     const cached = this.staticFileCache.get(pathname);
     if (cached) return cached.clone();
 
@@ -142,23 +150,19 @@ export class ThanhHoa<
     for (let i = 0; i < dirs.length; i++) {
       const staticDir = dirs[i];
 
-      // Exact match or directory traversal
       if (pathname.startsWith(staticDir.path)) {
         const filePath = pathname.replace(staticDir.path, staticDir.directory);
         const file = Bun.file(`${process.cwd()}/${filePath}`);
 
         if (await file.exists()) {
           const response = new Response(file);
-          // Cache it
           this.staticFileCache.set(pathname, response.clone());
           return response;
         }
       }
     }
 
-    // Explicit SPA Index Request (internal use)
     if (pathname === '/index.html') {
-      // Try to find index.html in any static dir
       for (let i = 0; i < dirs.length; i++) {
         const staticDir = dirs[i];
         const file = Bun.file(
@@ -198,8 +202,8 @@ export class ThanhHoa<
       let ampPos = queryString.indexOf('&', eqPos);
       if (ampPos === -1) ampPos = len;
 
-      const key = fastDecode(queryString.slice(start, eqPos));
-      const value = fastDecode(queryString.slice(eqPos + 1, ampPos));
+      const key = decodeURIComponent(queryString.slice(start, eqPos));
+      const value = decodeURIComponent(queryString.slice(eqPos + 1, ampPos));
 
       query[key] = value;
       start = ampPos + 1;
@@ -234,7 +238,6 @@ export class ThanhHoa<
         return locals.get(key) as T | undefined;
       },
 
-      // Body parsing helpers - lazy evaluation
       json<T = any>() {
         return req.json() as Promise<T>;
       },
@@ -265,9 +268,6 @@ export class ThanhHoa<
     };
   }
 
-  /**
-   * Main request handler - ultra optimized for maximum throughput
-   */
   async handleRequest(
     req: Request,
     server: {
@@ -277,14 +277,12 @@ export class ThanhHoa<
   ): Promise<Response> {
     const method = req.method;
 
-    // Fast path for OPTIONS
     if (method === 'OPTIONS') {
       return this.handleOptions(req);
     }
 
     const url = req.url;
 
-    // Zero-allocation URL parsing
     let pathStart = url.indexOf('/', 8);
     if (pathStart === -1) pathStart = url.length;
 
@@ -293,7 +291,6 @@ export class ThanhHoa<
 
     const pathname = url.slice(pathStart, queryStart) || '/';
 
-    // WebSocket upgrade handling
     if (method === 'GET' && this.wsRouter.isWebSocketRoute(pathname)) {
       const upgraded = server.upgrade?.(req, {
         data: { id: generateWsId(), path: pathname },
@@ -304,27 +301,23 @@ export class ThanhHoa<
       return new Response('WebSocket upgrade failed', { status: 400 });
     }
 
-    // Static file handling
     if (this.hasStaticDirs) {
       const staticResponse = await this.handleStaticFile(pathname);
       if (staticResponse) return staticResponse;
     }
 
-    // Create request context
     const context = this.createContext(
       req,
       server,
       this.createLazyQuery(url, queryStart),
     );
 
-    // Production mode: direct handling
     if (this.isProduction) {
       try {
         const response = this.handle(context);
         let finalResponse =
           response instanceof Promise ? await response : response;
 
-        // SPA Fallback
         if (
           finalResponse.status === 404 &&
           this.serveOptions.spa &&
@@ -332,22 +325,10 @@ export class ThanhHoa<
           req.method === 'GET' &&
           !pathname.startsWith('/api')
         ) {
-          const indexResponse = await this.handleStaticFile('/index.html');
-          if (indexResponse) return indexResponse;
-
-          // Manual check
-          const dirs = this.serveOptions.staticDirectories!;
-          for (const dir of dirs) {
-            const file = Bun.file(
-              `${process.cwd()}/${dir.directory}/index.html`,
-            );
-            if (await file.exists()) {
-              return new Response(file);
-            }
-          }
+          const spa = await this.handleSpaFallback();
+          if (spa) return spa;
         }
 
-        // Apply CORS headers
         const origin = req.headers.get('origin');
         if (origin) {
           finalResponse.headers.set('Access-Control-Allow-Origin', origin);
@@ -356,12 +337,10 @@ export class ThanhHoa<
           finalResponse.headers.set('Access-Control-Allow-Origin', '*');
         }
 
-        // Apply cookies to response
         if (context.cookies.getSetCookieHeaders().length > 0) {
           finalResponse = context.cookies.applyToResponse(finalResponse);
         }
 
-        // Apply Preload headers
         const preloadLinks = context.get<string[]>('__preload__');
         if (preloadLinks && preloadLinks.length > 0) {
           const existingLink = finalResponse.headers.get('Link');
@@ -394,8 +373,8 @@ export class ThanhHoa<
           req.method === 'GET' &&
           !pathname.startsWith('/api')
         ) {
-          const indexResponse = await this.handleStaticFile('/index.html');
-          if (indexResponse) return indexResponse;
+          const spa = await this.handleSpaFallback();
+          if (spa) return spa;
         }
 
         return this.errorHandler.handle(error, context);
@@ -410,7 +389,6 @@ export class ThanhHoa<
       let finalResponse =
         response instanceof Promise ? await response : response;
 
-      // SPA Fallback
       if (
         finalResponse.status === 404 &&
         this.serveOptions.spa &&
@@ -418,17 +396,8 @@ export class ThanhHoa<
         req.method === 'GET' &&
         !pathname.startsWith('/api')
       ) {
-        const indexResponse = await this.handleStaticFile('/index.html');
-        if (indexResponse) return indexResponse;
-
-        // Manual check
-        const dirs = this.serveOptions.staticDirectories!;
-        for (const dir of dirs) {
-          const file = Bun.file(`${process.cwd()}/${dir.directory}/index.html`);
-          if (await file.exists()) {
-            return new Response(file);
-          }
-        }
+        const spa = await this.handleSpaFallback();
+        if (spa) return spa;
       }
 
       // Apply CORS headers
@@ -467,7 +436,6 @@ export class ThanhHoa<
       if (error instanceof Response) {
         const errRes = error;
 
-        // SPA Fallback for 404
         if (
           errRes.status === 404 &&
           this.serveOptions.spa &&
@@ -475,22 +443,8 @@ export class ThanhHoa<
           req.method === 'GET' &&
           !pathname.startsWith('/api')
         ) {
-          // Try to serve index.html from the first static directory (assumption: public/index.html)
-          // We need to implement a more robust way to find index.html, but for now let's try the internal helper
-          const indexResponse = await this.handleStaticFile('/index.html');
-          if (indexResponse) return indexResponse;
-
-          // If not found via handleStaticFile (which expects /static/index.html mapped to public/index.html)
-          // We might need to look directly in the directories
-          const dirs = this.serveOptions.staticDirectories!;
-          for (const dir of dirs) {
-            const file = Bun.file(
-              `${process.cwd()}/${dir.directory}/index.html`,
-            );
-            if (await file.exists()) {
-              return new Response(file);
-            }
-          }
+          const spa = await this.handleSpaFallback();
+          if (spa) return spa;
         }
 
         // Apply CORS to error response too
@@ -557,6 +511,11 @@ export class ThanhHoa<
       serverConfig.websocket = this.wsRouter.createHandler();
     }
 
+    // Wire TLS if configured
+    if (options.tls) {
+      serverConfig.tls = options.tls;
+    }
+
     const server = Bun.serve(serverConfig);
     this.server = server;
 
@@ -582,11 +541,5 @@ export class ThanhHoa<
     return server;
   }
 }
-
-// Pre-allocated responses for reuse
-const EMPTY_QUERY: Record<string, string> = Object.freeze({});
-const INTERNAL_ERROR_RESPONSE = new Response('Internal Server Error', {
-  status: 500,
-});
 
 export default ThanhHoa;

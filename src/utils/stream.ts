@@ -1,11 +1,9 @@
 /**
  * Stream utilities with Bun-optimized conversions
- * Uses Bun's native APIs for maximum performance
  */
 
 /**
  * Convert ReadableStream to ArrayBuffer using Bun's native API
- * Much faster than using Response wrapper
  *
  * @example
  * const stream = ctx.stream();
@@ -84,7 +82,6 @@ export const streamToArray = async <T = unknown>(
 
 /**
  * Create a direct ReadableStream for zero-copy streaming
- * Uses Bun's optimized direct stream API
  *
  * @example
  * const stream = createDirectStream(async (controller) => {
@@ -103,7 +100,6 @@ export const createDirectStream = (
 
 /**
  * Create a response from async generator
- * Efficient streaming without buffering
  *
  * @example
  * return streamResponse(async function* () {

@@ -18,8 +18,8 @@ export const requestId = (options: RequestIdOptions = {}): Middleware => {
     const existingId = ctx.request.headers.get(header);
     const id = existingId || generator();
 
-    // Add to request headers for downstream use
-    ctx.request.headers.set(header, id);
+    // Store in locals for downstream middleware/handlers (Request headers are immutable)
+    ctx.set('requestId', id);
 
     const response = await next();
 

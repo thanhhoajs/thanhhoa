@@ -3,8 +3,6 @@ import type { Cookies } from '../../core/cookies.core';
 
 /**
  * Represents the context of an incoming request.
- * @interface IRequestContext
- * @description Provides access to the request, route parameters, query parameters, and other request-related data.
  */
 export interface IRequestContext<TState = Record<string, any>> {
   /**
@@ -69,15 +67,11 @@ export interface IRequestContext<TState = Record<string, any>> {
 
   /**
    * Set a value in request locals.
-   * @param key - Key to store value under
-   * @param value - Value to store
    */
   set<T = any>(key: string, value: T): void;
 
   /**
    * Get a value from request locals.
-   * @param key - Key to retrieve
-   * @returns The stored value or undefined
    */
   get<T = any>(key: string): T | undefined;
 
@@ -108,7 +102,6 @@ export interface IRequestContext<TState = Record<string, any>> {
 
   /**
    * Get request body as ReadableStream for efficient streaming of large files.
-   * @returns The request body stream or null if no body
    */
   stream(): ReadableStream<Uint8Array> | null;
 
@@ -118,8 +111,6 @@ export interface IRequestContext<TState = Record<string, any>> {
   [key: string]: any;
   /**
    * Helper to set Link header for resource preloading (HTTP/2 Server Push alternative)
-   * @param path URL path to preload
-   * @param as Resource type (script, style, image, etc.)
    */
   preload(
     path: string,

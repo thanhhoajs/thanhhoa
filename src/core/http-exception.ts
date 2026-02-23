@@ -1,6 +1,5 @@
 /**
  * HttpException - Structured error class for ThanhHoaJS
- * Use this to throw HTTP errors with status codes and optional data
  *
  * @example
  * throw new HttpException('User not found', 404);
@@ -20,7 +19,6 @@ export class HttpException extends Error {
     this.status = status;
     this.data = data;
 
-    // Maintains proper stack trace
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, HttpException);
     }

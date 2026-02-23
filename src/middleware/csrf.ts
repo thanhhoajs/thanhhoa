@@ -43,7 +43,7 @@ const generateToken = (length: number): string => {
 };
 
 /**
- * Timing-safe string comparison to prevent timing attacks
+ * Timing-safe string comparison
  */
 const timingSafeEqual = (a: string, b: string): boolean => {
   if (a.length !== b.length) return false;
@@ -92,7 +92,6 @@ export const csrf = (options: CSRFOptions = {}): Middleware => {
   return async (ctx, next) => {
     const url = new URL(ctx.request.url);
 
-    // Check skip paths
     if (skip) {
       const shouldSkip =
         typeof skip === 'function'
@@ -103,28 +102,22 @@ export const csrf = (options: CSRFOptions = {}): Middleware => {
       }
     }
 
-    // Get or generate token
     let token = ctx.cookies.get(cookie);
     if (!token) {
       token = generateToken(tokenLength);
       ctx.cookies.set(cookie, token, defaultCookieOptions);
     }
 
-    // Attach token to context for templates
     (ctx as any).csrfToken = token;
 
-    // Skip validation for safe methods
     if (safeMethods.includes(ctx.request.method)) {
       return next();
     }
 
-    // Get submitted token
     let submittedToken: string | null = null;
 
-    // Check header first
     submittedToken = ctx.request.headers.get(header);
 
-    // Check form body if no header
     if (!submittedToken) {
       try {
         const contentType = ctx.request.headers.get('Content-Type') || '';
@@ -139,17 +132,13 @@ export const csrf = (options: CSRFOptions = {}): Middleware => {
           const body = await ctx.request.clone().json();
           submittedToken = body[field];
         }
-      } catch {
-        // Ignore parsing errors
-      }
+      } catch { }
     }
 
-    // Check query parameter as last resort
     if (!submittedToken) {
       submittedToken = ctx.query[field] || null;
     }
 
-    // Validate token
     if (!submittedToken || !timingSafeEqual(token, submittedToken)) {
       return errorResponse();
     }
