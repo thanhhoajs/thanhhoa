@@ -1,6 +1,5 @@
 /**
  * WebSocket helper for ThanhHoaJS
- * Wrapper around Bun's native WebSocket server
  */
 
 import type { ServerWebSocket, WebSocketHandler } from 'bun';
@@ -120,8 +119,12 @@ export class WebSocketRouter {
 }
 
 /**
- * Generate unique WebSocket connection ID
+ * Generate cryptographically secure WebSocket connection ID
  */
 export const generateWsId = (): string => {
-  return Math.random().toString(36).slice(2, 11);
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 };

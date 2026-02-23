@@ -1,4 +1,4 @@
-import { join } from 'path';
+import { join, basename, extname } from 'path';
 import { mkdir } from 'fs/promises';
 import { randomUUID } from 'crypto';
 
@@ -26,28 +26,26 @@ export async function uploadFile(
   const directory = options.directory || 'uploads';
   const maxSize = options.maxSize || 5 * 1024 * 1024; // 5MB default
 
-  // Validate size
   if (file.size > maxSize) {
     throw new Error(`File size exceeds limit of ${maxSize} bytes`);
   }
 
-  // Validate type
   if (options.allowedTypes && !options.allowedTypes.includes(file.type)) {
     throw new Error(`File type ${file.type} is not allowed`);
   }
 
-  // Ensure directory exists
   const uploadDir = join(process.cwd(), directory);
   await mkdir(uploadDir, { recursive: true });
 
-  // Generate filename
-  let filename = file.name;
+  const safeName = basename(file.name);
+  let filename: string;
   if (!options.preserveName) {
-    const ext = file.name.split('.').pop();
-    filename = `${randomUUID()}.${ext}`;
+    const ext = extname(safeName) || '';
+    filename = `${randomUUID()}${ext}`;
+  } else {
+    filename = safeName;
   }
 
-  // Save file
   const filePath = join(uploadDir, filename);
   await Bun.write(filePath, file);
 

@@ -57,14 +57,12 @@ export const testClient = (app: ThanhHoa) => {
   ): Promise<TestResponse> => {
     const { method = 'GET', headers = {}, body, query } = options;
 
-    // Build URL with query params
     let url = `http://localhost${path}`;
     if (query) {
       const params = new URLSearchParams(query);
       url += `?${params.toString()}`;
     }
 
-    // Prepare body
     let requestBody: BodyInit | undefined;
     const requestHeaders: Record<string, string> = { ...headers };
 
@@ -81,22 +79,18 @@ export const testClient = (app: ThanhHoa) => {
       }
     }
 
-    // Create request
     const request = new Request(url, {
       method,
       headers: requestHeaders,
       body: requestBody,
     });
 
-    // Mock server object for requestIP
     const mockServer = {
       requestIP: () => ({ address: '127.0.0.1', port: 0, family: 'IPv4' }),
     };
 
-    // Call app's request handler directly
     const response = await (app as any).handleRequest(request, mockServer);
 
-    // Wrap response
     return {
       status: response.status,
       statusText: response.statusText,
@@ -109,7 +103,6 @@ export const testClient = (app: ThanhHoa) => {
     };
   };
 
-  // Shorthand methods
   return {
     request,
     get: (path: string, options?: Omit<TestRequestOptions, 'method'>) =>

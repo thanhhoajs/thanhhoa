@@ -8,7 +8,6 @@ import {
 import { createRouter } from 'radix3';
 import { Logger } from '@thanhhoajs/logger';
 
-// Pre-compiled handler type for maximum performance
 type CompiledHandler = (ctx: IRequestContext) => Response | Promise<Response>;
 
 // Route definition for storage and merging
@@ -20,25 +19,21 @@ interface RouteDefinition {
 }
 
 /**
- * Compile middleware chain at registration time (not runtime)
- * This eliminates runtime composition overhead
+ * Compile middleware chain at registration time
  */
 const compileMiddleware = (
   middlewares: Middleware[],
   handler: RouteHandler,
 ): CompiledHandler => {
-  // Fast path: no middleware
   if (middlewares.length === 0) {
     return handler;
   }
 
-  // Single middleware optimization
   if (middlewares.length === 1) {
     const mw = middlewares[0];
     return (ctx) => mw(ctx, () => Promise.resolve(handler(ctx)));
   }
 
-  // Multiple middlewares - pre-compile the chain
   return (ctx) => {
     let index = 0;
     const next = (): Promise<Response> => {
@@ -62,7 +57,6 @@ const compileMiddleware = (
  * - Group-specific middleware
  */
 export class Router {
-  // Store pre-compiled handlers for instant invocation
   private radixRouter = createRouter<{
     handler: CompiledHandler;
   }>();
@@ -73,11 +67,8 @@ export class Router {
   protected logger = Logger.get('THANHHOA');
   private isProductionMode = process.env.NODE_ENV === 'production';
 
-  constructor(protected prefix: string = '') {}
+  constructor(protected prefix: string = '') { }
 
-  /**
-   * Inline path normalization - zero function call overhead
-   */
   private normalizePath(path: string): string {
     if (path === '/') return '/';
     const len = path.length;
@@ -219,18 +210,14 @@ export class Router {
     const groupPrefix = this.prefix + this.normalizePath(prefix);
     const subRouter = new Router(groupPrefix);
 
-    // Inherit parent global middlewares + group-specific middlewares
     subRouter.globalMiddlewares = [...this.globalMiddlewares, ...middlewares];
 
-    // Configure the sub-router (may include nested groups)
     configure(subRouter);
 
-    // Merge all routes from sub-router (including nested) into this router
     for (const route of subRouter.routes) {
       // Store route definition
       this.routes.push(route);
 
-      // Register to radix router
       this.registerRoute(
         route.method,
         route.path,
@@ -257,7 +244,6 @@ export class Router {
   mount(prefix: string, router: Router): this {
     const mountPrefix = this.prefix + this.normalizePath(prefix);
 
-    // Re-register all routes from the sub-router with new prefix
     for (const route of router.routes) {
       const fullPath =
         mountPrefix +
@@ -268,7 +254,6 @@ export class Router {
         ...route.middlewares,
       ];
 
-      // Store with new path
       this.routes.push({
         method: route.method,
         path: fullPath || '/',
@@ -291,17 +276,12 @@ export class Router {
     return this;
   }
 
-  /**
-   * Internal method to add a route with pre-compiled handler
-   * Middleware is compiled at registration time for zero runtime overhead
-   */
   protected addRoute(
     method: HttpMethod,
     path: string,
     handler: RouteHandler,
     middlewares: Middleware[] = [],
   ): this {
-    // Normalize path inline
     const normalizedPath =
       path.length === 0 || path === '/'
         ? '/'
@@ -313,7 +293,6 @@ export class Router {
       ? this.normalizePath(this.prefix) + this.normalizePath(normalizedPath)
       : this.normalizePath(normalizedPath);
 
-    // Store route definition for sub-router merging
     this.routes.push({
       method,
       path: fullPath || '/',
@@ -321,7 +300,6 @@ export class Router {
       middlewares,
     });
 
-    // Compile and register
     const allMiddlewares = this.globalMiddlewares.length
       ? [...this.globalMiddlewares, ...middlewares]
       : middlewares;
@@ -364,27 +342,18 @@ export class Router {
     return [...this.routes];
   }
 
-  /**
-   * Handle incoming requests - ultra optimized hot path
-   * Zero allocations except for required Response
-   */
   handle(context: IRequestContext): Response | Promise<Response> {
     const { request } = context;
     const url = request.url;
 
-    // Fast path extraction without new URL()
-    // Find pathname start (after protocol://host)
-    let pathStart = url.indexOf('/', 8); // Skip "https://" or "http://"
+    let pathStart = url.indexOf('/', 8);
     if (pathStart === -1) pathStart = url.length;
 
-    // Find query string start
     let queryStart = url.indexOf('?', pathStart);
     if (queryStart === -1) queryStart = url.length;
 
-    // Extract pathname without allocation
     const pathname = url.slice(pathStart, queryStart) || '/';
 
-    // Inline normalize
     const normalizedPath =
       pathname === '/'
         ? '/'
@@ -392,7 +361,6 @@ export class Router {
           ? pathname.slice(0, -1)
           : pathname;
 
-    // Lookup route
     const route = this.radixRouter.lookup(
       `${request.method}:${normalizedPath}`,
     );
@@ -403,14 +371,9 @@ export class Router {
         context.params = route.params;
       }
 
-      // Direct handler invocation - no middleware composition at runtime
       return route.handler(context);
     }
 
-    // 404 - reuse static response when possible
-    return NOT_FOUND_RESPONSE;
+    return new Response('Not Found', { status: 404 });
   }
 }
-
-// Pre-allocated 404 response for reuse
-const NOT_FOUND_RESPONSE = new Response('Not Found', { status: 404 });

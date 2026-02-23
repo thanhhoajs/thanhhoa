@@ -66,7 +66,6 @@ export const bearerAuth = (options: BearerAuthOptions): Middleware => {
   }
 
   return async (ctx, next) => {
-    // Check skip paths
     if (skip) {
       const url = new URL(ctx.request.url);
       const shouldSkip =
@@ -91,7 +90,6 @@ export const bearerAuth = (options: BearerAuthOptions): Middleware => {
       return errorResponse('Missing token');
     }
 
-    // Validate token
     let isValid: boolean;
 
     if (validate) {
@@ -106,7 +104,6 @@ export const bearerAuth = (options: BearerAuthOptions): Middleware => {
       return errorResponse('Invalid token');
     }
 
-    // Attach token to context
     (ctx as any).bearerToken = providedToken;
 
     return next();

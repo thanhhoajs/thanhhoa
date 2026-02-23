@@ -1,6 +1,5 @@
 /**
  * Redis connection utility
- * Implements Singleton pattern to ensure a single connection instance is reused
  */
 
 let redisInstance: any = null;
@@ -18,7 +17,6 @@ export const getRedisClient = async (options?: any): Promise<any> => {
   }
 
   try {
-    // Try to import ioredis dynamically
     // @ts-ignore
     const { default: Redis } = await import('ioredis');
     redisInstance = new Redis(options);

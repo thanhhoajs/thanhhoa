@@ -1,6 +1,5 @@
 /**
  * Cookie utilities for ThanhHoaJS
- * Lightweight cookie handling without dependencies
  */
 
 export interface CookieOptions {
@@ -15,7 +14,6 @@ export interface CookieOptions {
 
 /**
  * Cookie helper class
- * Provides get/set/delete operations on cookies
  */
 export class Cookies {
   private requestCookies: Map<string, string>;

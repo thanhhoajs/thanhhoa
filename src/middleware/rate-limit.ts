@@ -1,4 +1,4 @@
-import { LRUCache } from 'lru-cache';
+import { LRUCache } from '../utils/lru-cache';
 import type { Middleware } from '../shared/types';
 
 interface RateLimitInfo {
@@ -36,8 +36,8 @@ export class MemoryStore implements RateLimitStore {
     return this.cache.get(key) || null;
   }
 
-  async set(key: string, info: RateLimitInfo, ttlMs: number): Promise<void> {
-    this.cache.set(key, info, { ttl: ttlMs });
+  async set(key: string, info: RateLimitInfo, _ttlMs: number): Promise<void> {
+    this.cache.set(key, info);
   }
 
   async increment(key: string, windowMs: number): Promise<RateLimitInfo> {

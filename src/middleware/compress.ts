@@ -1,6 +1,6 @@
 /**
  * Compression middleware for ThanhHoaJS
- * Compresses response bodies using gzip or deflate
+ * Compresses response bodies using brotli, gzip, or deflate
  */
 
 import type { Middleware } from '../shared/types';
@@ -8,11 +8,10 @@ import type { Middleware } from '../shared/types';
 export interface CompressOptions {
   /** Minimum size in bytes to compress (default: 1024) */
   threshold?: number;
-  /** Preferred encoding (default: 'gzip') */
-  encoding?: 'gzip' | 'deflate';
+  /** Preferred encoding order (default: ['br', 'gzip', 'deflate']) */
+  encoding?: ('br' | 'gzip' | 'deflate')[];
 }
 
-// Compressible MIME types - pre-allocated for zero runtime allocation
 const COMPRESSIBLE_TYPES = [
   'text/',
   'application/json',
@@ -24,28 +23,33 @@ const COMPRESSIBLE_TYPES = [
 
 /**
  * Compression middleware
- * Automatically compresses responses above threshold
+ * Automatically compresses responses above threshold.
+ * Supports br (Brotli), gzip, and deflate — in that preference order by default.
  *
  * @example
  * app.use(compress({ threshold: 1024 }));
+ * app.use(compress({ encoding: ['gzip'] })); // gzip only
  */
 export const compress = (options: CompressOptions = {}): Middleware => {
   const threshold = options.threshold ?? 1024;
-  const preferredEncoding = options.encoding ?? 'gzip';
+  const preferredOrder = options.encoding ?? ['br', 'gzip', 'deflate'];
 
   return async (ctx, next) => {
     const response = await next();
     const acceptEncoding = ctx.request.headers.get('Accept-Encoding') || '';
 
-    // Check if client accepts compression
-    const supportsGzip = acceptEncoding.includes('gzip');
-    const supportsDeflate = acceptEncoding.includes('deflate');
+    let encoding: 'br' | 'gzip' | 'deflate' | null = null;
+    for (const enc of preferredOrder) {
+      if (acceptEncoding.includes(enc)) {
+        encoding = enc;
+        break;
+      }
+    }
 
-    if (!supportsGzip && !supportsDeflate) {
+    if (!encoding) {
       return response;
     }
 
-    // Check content type - only compress text-based content
     const contentType = response.headers.get('Content-Type') || '';
     const isCompressible = COMPRESSIBLE_TYPES.some((type) =>
       contentType.includes(type),
@@ -54,10 +58,12 @@ export const compress = (options: CompressOptions = {}): Middleware => {
       return response;
     }
 
-    // Get body
+    if (!response.body) {
+      return response;
+    }
+
     const body = await response.arrayBuffer();
 
-    // Check threshold
     if (body.byteLength < threshold) {
       return new Response(body, {
         status: response.status,
@@ -66,29 +72,29 @@ export const compress = (options: CompressOptions = {}): Middleware => {
       });
     }
 
-    // Determine encoding
-    let encoding: 'gzip' | 'deflate';
-    if (preferredEncoding === 'gzip' && supportsGzip) {
-      encoding = 'gzip';
-    } else if (preferredEncoding === 'deflate' && supportsDeflate) {
-      encoding = 'deflate';
-    } else if (supportsGzip) {
-      encoding = 'gzip';
+    const data = new Uint8Array(body);
+    let compressed: Uint8Array;
+    let finalEncoding: string = encoding;
+
+    if (encoding === 'br') {
+      if (typeof (Bun as any).brotliCompressSync === 'function') {
+        compressed = (Bun as any).brotliCompressSync(data);
+      } else {
+        finalEncoding = 'gzip';
+        compressed = Bun.gzipSync(data);
+      }
+    } else if (encoding === 'gzip') {
+      compressed = Bun.gzipSync(data);
     } else {
-      encoding = 'deflate';
+      compressed = Bun.deflateSync(data);
     }
 
-    // Compress using Bun's native compression with correct algorithm
-    const data = new Uint8Array(body);
-    const compressed =
-      encoding === 'gzip' ? Bun.gzipSync(data) : Bun.deflateSync(data);
-
     const headers = new Headers(response.headers);
-    headers.set('Content-Encoding', encoding);
-    headers.set('Content-Length', compressed.byteLength.toString());
+    headers.set('Content-Encoding', finalEncoding);
+    headers.set('Content-Length', compressed!.byteLength.toString());
     headers.set('Vary', 'Accept-Encoding');
 
-    return new Response(compressed, {
+    return new Response(compressed! as unknown as BodyInit, {
       status: response.status,
       statusText: response.statusText,
       headers,

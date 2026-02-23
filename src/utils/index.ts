@@ -4,3 +4,4 @@ export * from './file-response';
 export * from './test-client';
 export * from './session';
 export * from './stream';
+export * from './lru-cache';

@@ -1,4 +1,5 @@
 import type { IRequestContext } from '../shared/interfaces';
+import { HttpException } from './http-exception';
 
 /**
  * Interface for global error handling
@@ -13,9 +14,14 @@ export interface IErrorHandler {
  */
 export class DefaultErrorHandler implements IErrorHandler {
   handle(error: unknown, ctx: IRequestContext): Response {
+    // HttpException: use its own status and body
+    if (error instanceof HttpException) {
+      return error.toResponse();
+    }
+
     const isProduction = process.env.NODE_ENV === 'production';
 
-    // Log the error
+    // Log unexpected errors
     console.error(`[Error] ${ctx.request.method} ${ctx.request.url}:`, error);
 
     const errorMessage = error instanceof Error ? error.message : String(error);

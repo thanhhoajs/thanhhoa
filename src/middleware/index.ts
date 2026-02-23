@@ -11,3 +11,4 @@ export * from './jwt';
 export * from './csrf';
 export * from './basic-auth';
 export * from './bearer-auth';
+export * from './cache-control';

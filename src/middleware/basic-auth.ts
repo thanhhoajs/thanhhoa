@@ -64,7 +64,6 @@ export const basicAuth = (options: BasicAuthOptions): Middleware => {
   const { username, password, realm = 'Secure Area', validate, skip } = options;
 
   return async (ctx, next) => {
-    // Check skip paths
     if (skip) {
       const url = new URL(ctx.request.url);
       const shouldSkip =
@@ -83,7 +82,6 @@ export const basicAuth = (options: BasicAuthOptions): Middleware => {
     }
 
     try {
-      // Decode Base64 credentials
       const base64Credentials = authHeader.slice(6);
       const credentials = atob(base64Credentials);
       const colonIndex = credentials.indexOf(':');
@@ -95,7 +93,6 @@ export const basicAuth = (options: BasicAuthOptions): Middleware => {
       const providedUsername = credentials.substring(0, colonIndex);
       const providedPassword = credentials.substring(colonIndex + 1);
 
-      // Validate credentials
       let isValid: boolean;
 
       if (validate) {
@@ -110,7 +107,6 @@ export const basicAuth = (options: BasicAuthOptions): Middleware => {
         return unauthorized(realm);
       }
 
-      // Attach username to context
       (ctx as any).basicAuthUser = providedUsername;
 
       return next();

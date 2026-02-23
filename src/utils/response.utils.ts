@@ -1,6 +1,5 @@
 /**
  * Response utilities for high-performance response creation
- * Optimized for Bun runtime
  */
 
 const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
@@ -8,8 +7,14 @@ const HTML_HEADERS = { 'Content-Type': 'text/html; charset=utf-8' };
 const TEXT_HEADERS = { 'Content-Type': 'text/plain; charset=utf-8' };
 
 /**
+ * JSON replacer that safely serializes BigInt values as strings
+ */
+const jsonReplacer = (_: string, value: unknown): unknown =>
+  typeof value === 'bigint' ? value.toString() : value;
+
+/**
  * Create a JSON response
- * @param data - Data to serialize to JSON
+ * @param data - Data to serialize to JSON (bigint fields are stringified)
  * @param status - HTTP status code (default: 200)
  * @param headers - Additional headers
  */
@@ -18,7 +23,7 @@ export const json = <T>(
   status = 200,
   headers?: HeadersInit,
 ): Response =>
-  new Response(JSON.stringify(data), {
+  new Response(JSON.stringify(data, jsonReplacer), {
     status,
     headers: headers ? { ...JSON_HEADERS, ...headers } : JSON_HEADERS,
   });

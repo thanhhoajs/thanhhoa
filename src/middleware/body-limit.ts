@@ -29,7 +29,6 @@ export const bodyLimit = (options: BodyLimitOptions = {}): Middleware => {
   return async (ctx, next) => {
     const contentLength = ctx.request.headers.get('Content-Length');
 
-    // Check Content-Length header first (fast path)
     if (contentLength) {
       const size = parseInt(contentLength, 10);
       if (!isNaN(size) && size > maxSize) {
@@ -47,9 +46,6 @@ export const bodyLimit = (options: BodyLimitOptions = {}): Middleware => {
         );
       }
     }
-
-    // For streaming bodies without Content-Length, we need to check during parsing
-    // This is handled at the handler level when they call ctx.json() etc.
 
     return next();
   };
