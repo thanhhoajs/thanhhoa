@@ -132,7 +132,7 @@ export const csrf = (options: CSRFOptions = {}): Middleware => {
           const body = await ctx.request.clone().json();
           submittedToken = body[field];
         }
-      } catch { }
+      } catch {}
     }
 
     if (!submittedToken) {
